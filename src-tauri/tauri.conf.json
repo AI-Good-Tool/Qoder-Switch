@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Qoder Switch",
+  "version": "1.6.0",
+  "identifier": "com.qoderswitch.app",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Qoder Switch",
+        "width": 1080,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg",
+      "nsis"
+    ],
+    "category": "Utility",
+    "shortDescription": "Qoder 账号切换与每日积分自动领取",
+    "longDescription": "Qoder 国际版与国内版多账号切换、每日积分自动领取桌面客户端。",
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "entitlements": null,
+      "signingIdentity": "-"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns"
+    ]
+  },
+  "mainBinaryName": "qoder-switch"
+}

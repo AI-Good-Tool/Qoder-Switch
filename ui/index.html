@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Qoder Switch</title>
+<style>
+:root {
+  --primary: #3c5d48;
+  --primary-hover: #4a7158;
+  --primary-soft: rgba(60,93,72,.10);
+  --bg: #f5f6f8;
+  --card: #ffffff;
+  --muted-bg: #f0f1f4;
+  --text: #1f2329;
+  --muted: #7a8190;
+  --border: #e5e7eb;
+  --red: #e5484d;
+  --orange: #d97706;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(31,35,41,.05), 0 2px 8px rgba(31,35,41,.05);
+}
+body.dark {
+  --primary: #4a7158;
+  --primary-hover: #5b8670;
+  --primary-soft: rgba(74,113,88,.18);
+  --bg: #141519;
+  --card: #1e2026;
+  --muted-bg: #262931;
+  --text: #e8eaee;
+  --muted: #9aa1ad;
+  --border: #2d3038;
+  --red: #ff6b6b;
+  --orange: #ffa02e;
+  --shadow: 0 1px 2px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.22);
+  color-scheme: dark;
+}
+body.dark #sidebar { background: #141519; }
+body.dark .nav-item:hover { background: rgba(255,255,255,.05); }
+body.dark .nav-item.active { background: rgba(255,255,255,.08); }
+body.dark .dot { background: #4a4f5a; }
+body.dark .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+body.dark .sess:hover { box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+body.dark .ubar { background: rgba(255,255,255,.09); }
+body.dark .chart .bar.zero, body.dark #creditChart .bar.zero, body.dark #tokenChart .bar.zero { background: #2d3038; }
+body.dark .fpill.active { color: #141519; }
+body.dark .toggle { background: #3a3e48; }
+body.dark #modalMask { background: rgba(0,0,0,.55); }
+body.dark .seg button.active { background: #34383f; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", sans-serif;
+  color: var(--text); background: var(--bg); font-size: 14px;
+  -webkit-font-smoothing: antialiased; display: flex;
+}
+/* ───── 侧边栏 ───── */
+#sidebar {
+  width: 208px; flex: 0 0 208px; border-right: 1px solid var(--border);
+  padding: 16px 10px; display: flex; flex-direction: column; gap: 4px; background: #fafbfc;
+}
+#sidebar .logo { display: flex; align-items: center; gap: 10px; padding: 4px 10px 16px; }
+#sidebar .logo .mark { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+#sidebar .logo .mark svg { width: 30px; height: 30px; display: block; }
+#sidebar .logo .name { font-weight: 600; font-size: 14px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px;
+  color: var(--muted); cursor: pointer; font-size: 13.5px; user-select: none; transition: background .12s, color .12s;
+}
+.nav-item svg { width: 16px; height: 16px; }
+.nav-item:hover { background: rgba(0,0,0,.045); color: var(--text); }
+.nav-item.active { background: rgba(0,0,0,.065); font-weight: 500; color: var(--text); }
+#sidebar .foot { margin-top: auto; padding: 8px 10px; color: var(--muted); font-size: 11.5px; line-height: 1.7; }
+/* ───── 主区 ───── */
+#main { flex: 1; overflow-y: auto; padding: 24px 28px 40px; }
+.page { display: none; margin: 0 auto; }
+.page.active { display: block; }
+h1.pt { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+p.pd { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+/* ───── 卡片 / 区块 ───── */
+.section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 16px; }
+.section > .sec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.section > .sec-head h2 { font-size: 15px; font-weight: 600; }
+.empty { color: var(--muted); font-size: 13px; padding: 18px 6px; text-align: center; }
+/* ───── 按钮 ───── */
+button {
+  font: inherit; font-size: 13px; border-radius: 9px; border: 1px solid var(--border);
+  background: var(--card); color: var(--text); padding: 6px 13px; cursor: pointer; transition: all .12s;
+}
+button:hover { background: var(--muted-bg); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 500; }
+button.primary:hover { background: var(--primary-hover); }
+button.danger { color: var(--red); border-color: rgba(255,107,107,.4); }
+button.danger:hover { background: rgba(255,107,107,.1); }
+button.sm { padding: 4px 10px; font-size: 12.5px; border-radius: 8px; }
+select.sel {
+  font: inherit; font-size: 13px; border-radius: 9px; border: 1px solid var(--border);
+  background: var(--card); color: var(--text); padding: 6px 10px; cursor: pointer; outline: none; min-width: 150px;
+}
+select.sel:focus { border-color: var(--primary); }
+/* ───── 徽标 ───── */
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--muted-bg); color: var(--muted); }
+.pill.on { background: var(--primary-soft); color: var(--primary-hover); }
+.pill.off { background: rgba(255,107,107,.14); color: var(--red); }
+.pill.warn { background: rgba(255,160,46,.14); color: var(--orange); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #c9cdd4; display: inline-block; }
+.dot.on { background: var(--primary); }
+/* ───── 账号卡片 ───── */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.card { border: 1px solid var(--border); border-radius: var(--radius); padding: 15px; display: flex; flex-direction: column; gap: 9px; background: var(--card); transition: box-shadow .15s; }
+.card:hover { box-shadow: 0 4px 16px rgba(31,35,41,.10); }
+.card.current { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), var(--shadow); }
+.card .head { display: flex; align-items: center; gap: 11px; }
+.avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, #4a7158, #3c5d48); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; overflow: hidden; flex: 0 0 38px; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar.fb svg { width: 100%; height: 100%; display: block; }
+.card .name { font-weight: 600; font-size: 14.5px; }
+.card .sub { color: var(--muted); font-size: 12.5px; }
+.card .note { font-size: 12.5px; color: var(--primary-hover); background: var(--primary-soft); border-radius: 8px; padding: 5px 9px; }
+.card .ops { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 2px; }
+.card .info { border-top: 1px dashed var(--border); padding-top: 9px; font-size: 12.5px; color: var(--muted); line-height: 1.8; display: none; }
+.card .info b { color: var(--text); }
+/* ───── 用量明细（官方样式·紧凑） ───── */
+.u-title { font-size: 13px; font-weight: 600; margin-bottom: 7px; }
+.ucard { border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; margin-bottom: 8px; background: var(--muted-bg); }
+.ucard .un { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; font-size: 13px; font-weight: 600; }
+.ucard .un small { display: block; color: var(--muted); font-weight: 400; font-size: 11.5px; margin-top: 2px; }
+.ucard .ur { color: var(--muted); font-size: 12px; flex: 0 0 auto; }
+.ucard .ur b { color: var(--text); font-size: 13px; }
+.ubar { height: 6px; border-radius: 999px; background: rgba(31,35,41,.07); overflow: hidden; margin: 8px 0 6px; }
+.ubar i { display: block; height: 100%; background: linear-gradient(90deg, #ff8a3d, var(--primary)); border-radius: 999px; }
+.ufoot { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.upack { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 5px 4px 0; color: var(--muted); }
+.upack .sq { width: 8px; height: 8px; background: var(--primary); border-radius: 2px; display: inline-block; margin-right: 7px; }
+.umeta { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 12px; color: var(--muted); line-height: 1.8; }
+.umeta b { color: var(--text); }
+.ucamps { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 2px; }
+.ucamp { display: inline-flex; align-items: center; gap: 6px; }
+.ucamp .cid { opacity: .65; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; }
+/* ───── 统计卡片 ───── */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+.stat { border: 1px solid var(--border); border-radius: var(--radius); padding: 15px 16px; box-shadow: var(--shadow); background: var(--card); }
+.stat .t { color: var(--muted); font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+.stat .v { font-size: 22px; font-weight: 650; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.stat .v small { font-size: 12px; color: var(--muted); font-weight: 400; }
+/* ───── 柱状图 ───── */
+.chart { display: flex; align-items: flex-end; gap: 3px; height: 150px; padding: 10px 2px 0; }
+.chart .bar { flex: 1; min-width: 4px; background: var(--primary); border-radius: 4px 4px 2px 2px; opacity: .85; position: relative; cursor: default; }
+.chart .bar:hover { opacity: 1; background: var(--primary-hover); }
+.chart .bar.zero { background: #e5e7eb; opacity: 1; }
+/* ───── 明细 ───── */
+.detail-row { display: flex; align-items: center; gap: 12px; padding: 7px 2px; font-size: 13px; }
+.detail-row .d { width: 86px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.detail-row .track { flex: 1; height: 14px; background: var(--muted-bg); border-radius: 7px; overflow: hidden; }
+.detail-row .fill { height: 100%; background: linear-gradient(90deg, #ff8a3d, var(--primary)); border-radius: 7px; }
+.detail-row .n { width: 90px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+/* ───── 会话 ───── */
+.ed-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.ed-tab { border: 1px solid var(--border); border-radius: 10px; padding: 8px 16px; cursor: pointer; font-size: 13.5px; background: var(--card); }
+.ed-tab.active { border-color: var(--primary); color: var(--primary-hover); background: var(--primary-soft); font-weight: 500; }
+.sess-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
+.sess { border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 14px; background: var(--card); display: flex; flex-direction: column; gap: 8px; }
+.sess:hover { box-shadow: 0 4px 16px rgba(31,35,41,.10); }
+.sess .proj { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sess .title { font-weight: 500; font-size: 13.5px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 38px; }
+.sess .meta { color: var(--muted); font-size: 12px; display: flex; gap: 10px; align-items: center; }
+.sess .ops { display: flex; gap: 6px; flex-wrap: wrap; }
+.filter-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.fpill { border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px; font-size: 12.5px; cursor: pointer; background: var(--card); color: var(--muted); }
+.fpill.active { background: var(--text); color: #fff; border-color: var(--text); }
+/* ───── 时间范围控件：chips 平铺 + 范围框 + 双月日历 ───── */
+.dd { position: relative; }
+.range-ctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; position: relative; }
+.rtabs { display: inline-flex; align-items: center; background: var(--muted-bg); border-radius: 10px; padding: 3px; flex-wrap: wrap; }
+.rchip { position: relative; box-sizing: border-box; height: 26px; display: inline-flex; align-items: center; font-size: 12.5px; padding: 0 12px; border-radius: 8px; cursor: pointer; color: var(--muted); border: 1px solid transparent; white-space: nowrap; user-select: none; }
+.rchip + .rchip::before { content: ''; position: absolute; left: 0; top: 25%; height: 50%; width: 1px; background: var(--border); }
+.rchip:hover { color: var(--text); }
+.rchip.active { background: var(--card); border-color: var(--border); color: var(--primary-hover); font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
+.rchip.active::before, .rchip.active + .rchip::before { display: none; }
+.range-box { box-sizing: border-box; height: 32px; display: inline-flex; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid var(--border); border-radius: 10px; font-size: 12.5px; cursor: pointer; background: var(--card); color: var(--text); white-space: nowrap; }
+.range-box:hover { border-color: var(--primary); }
+.range-box.on { border-color: var(--primary); color: var(--primary-hover); background: var(--primary-soft); }
+.range-box svg { width: 12px; height: 12px; opacity: .65; flex: 0 0 auto; }
+.range-box .clr { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; font-size: 12px; line-height: 1; color: var(--muted); }
+.range-box .clr:hover { background: var(--muted-bg); color: var(--red); }
+.rpanel { position: fixed; z-index: 200; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 32px rgba(0,0,0,.16); padding: 12px 14px; width: 566px; max-width: calc(100vw - 24px); }
+.cal-top { display: flex; align-items: center; gap: 8px; }
+.cal-title { flex: 1; text-align: center; font-weight: 600; font-size: 13.5px; color: var(--text); }
+.cal-navs { display: flex; gap: 2px; }
+.cal-nav { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; color: var(--muted); font-size: 13px; }
+.cal-nav:hover { background: var(--muted-bg); color: var(--text); }
+.cal-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-wd { font-size: 11px; color: var(--muted); text-align: center; padding: 4px 0 6px; }
+.cal-day { position: relative; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 12.5px; border-radius: 8px; cursor: pointer; color: var(--text); user-select: none; }
+.cal-day:hover { background: var(--muted-bg); }
+.cal-day.out { color: var(--muted); opacity: .5; }
+.cal-day.inr { background: var(--primary-soft); border-radius: 0; color: var(--primary-hover); }
+.cal-day.sel { background: var(--primary); color: #fff; font-weight: 550; }
+.cal-day.sel:hover { background: var(--primary); }
+.cal-day.today::after { content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--primary); }
+.cal-day.sel.today::after { background: #fff; }
+.cal-foot { display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+.cal-foot .fbox { flex: 1; display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 9px; font-size: 12px; color: var(--text); min-width: 0; }
+.cal-foot .fbox .fd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-foot .fical { display: inline-flex; color: var(--muted); flex: 0 0 auto; }
+.cal-foot .fical svg { width: 12px; height: 12px; }
+.cal-foot input[type="time"] { border: none; background: transparent; color: var(--text); font-family: inherit; font-size: 12px; width: 86px; padding: 0; }
+.cal-foot input[type="time"]:focus { outline: none; }
+.cal-foot .apply { padding: 7px 18px; font-size: 12.5px; border-radius: 8px; flex: 0 0 auto; }
+.dd-menu { position: absolute; right: 0; top: calc(100% + 6px); background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.14); padding: 5px; min-width: 128px; z-index: 60; }
+.dd-item { padding: 7px 12px; border-radius: 7px; font-size: 12.5px; cursor: pointer; color: var(--text); white-space: nowrap; }
+.dd-item:hover { background: var(--muted-bg); }
+.dd-item.active { color: var(--primary-hover); background: var(--primary-soft); font-weight: 500; }
+/* 账号卡手机号 + 睁眼/闭眼 */
+.head .sub { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.head .sub .eye { display: inline-flex; cursor: pointer; color: var(--muted); flex: 0 0 auto; }
+.head .sub .eye:hover { color: var(--text); }
+.head .sub .eye svg { width: 12px; height: 12px; }
+/* 用量明细弹窗活动名 */
+.ucamp .camt { color: var(--primary-hover); font-size: 11.5px; }
+.search { border: 1px solid var(--border); border-radius: 10px; padding: 7px 12px; font: inherit; font-size: 13px; width: 220px; outline: none; background: var(--card); color: var(--text); }
+.search:focus { border-color: var(--primary); }
+.grp { border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 15px; margin-bottom: 10px; background: var(--card); }
+.grp .gh { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.grp .members { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.grp .members b { color: var(--text); font-weight: 500; }
+/* ───── 开关 ───── */
+.toggle { width: 40px; height: 23px; border-radius: 999px; background: #d5d9e0; position: relative; cursor: pointer; transition: background .15s; flex: 0 0 40px; }
+.toggle.on { background: var(--primary); }
+.toggle::after { content: ''; position: absolute; top: 2.5px; left: 2.5px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; }
+.toggle.on::after { left: 19.5px; }
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--muted-bg); }
+.row:last-child { border-bottom: none; }
+.row .rt { flex: 1; }
+.row .rt b { font-weight: 500; font-size: 13.5px; display: block; }
+.row .rt span { color: var(--muted); font-size: 12.5px; }
+/* ───── 弹窗 ───── */
+#modalMask { position: fixed; inset: 0; background: rgba(31,35,41,.38); display: none; align-items: center; justify-content: center; z-index: 100; }
+#modalMask.show { display: flex; }
+#modal { background: var(--card); border: 1px solid var(--border); border-radius: 14px; width: 520px; max-width: 92vw; max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+#modal .mh { padding: 16px 20px 0; font-size: 15px; font-weight: 600; }
+#modal .mb { padding: 12px 20px; overflow-y: auto; font-size: 13.5px; line-height: 1.6; }
+#modal .mf { padding: 12px 20px 16px; display: flex; gap: 9px; justify-content: flex-end; border-top: 1px solid var(--muted-bg); }
+#modal input[type=text] { width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 8px 11px; font: inherit; font-size: 13.5px; outline: none; background: var(--muted-bg); color: var(--text); }
+#modal input[type=text]:focus { border-color: var(--primary); }
+.usage-modal { min-height: 140px; }
+.usage-modal .spin { vertical-align: -2px; }
+.mtabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 10px 20px 0; }
+.mtab { padding: 7px 13px; font-size: 13px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; }
+.mtab.active { color: var(--primary-hover); border-bottom-color: var(--primary); font-weight: 500; }
+.check-row { display: flex; align-items: center; gap: 9px; padding: 8px 4px; border-bottom: 1px solid var(--muted-bg); font-size: 13px; }
+.check-row:last-child { border-bottom: none; }
+.check-row .t { flex: 1; }
+.check-row .t small { color: var(--muted); display: block; }
+/* ───── 进度 ───── */
+#progress { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: center; justify-content: center; z-index: 110; }
+#progress.show { display: flex; }
+#progressBox { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px 26px; width: 380px; max-width: 90vw; }
+#progressBox .pt { font-weight: 600; margin-bottom: 10px; font-size: 14.5px; }
+#progressSteps { font-size: 12.5px; color: var(--muted); line-height: 1.9; max-height: 200px; overflow-y: auto; }
+.spin { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; display: inline-block; animation: sp 1s linear infinite; vertical-align: -3px; margin-right: 8px; }
+@keyframes sp { to { transform: rotate(360deg); } }
+/* ───── toast / log ───── */
+#toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(calc(-100% - 120px)); background: #2c3038; color: #fff; border: 1px solid #2c3038; padding: 9px 18px; border-radius: 10px; font-size: 13px; max-width: min(520px, 76vw); line-height: 1.5; text-align: center; pointer-events: none; opacity: 0; transition: transform .25s, opacity .2s; z-index: 200; }
+#toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+#claimLog { font: 11.5px Menlo, monospace; color: var(--muted); white-space: pre-wrap; line-height: 1.7; max-height: 260px; overflow-y: auto; }
+#claimLog .ok { color: var(--primary-hover); }
+#claimLog .err { color: var(--red); }
+code.path { font: 11.5px Menlo, monospace; background: var(--muted-bg); padding: 2px 6px; border-radius: 6px; }
+/* ───── 页头 / 分段控件 / 大指标卡 ───── */
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; }
+.page-head h1 { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
+.page-head .ph-sub { color: var(--muted); font-size: 13px; margin-top: 5px; }
+.page-head .ph-ops { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.page-toolbar { display: flex; justify-content: flex-end; margin: 0 0 14px; }
+.seg { display: inline-flex; gap: 4px; background: var(--muted-bg); border-radius: 10px; padding: 4px; }
+.seg button { border: none; background: transparent; padding: 5px 12px; font-size: 12.5px; border-radius: 7px; color: var(--muted); }
+.seg button:hover { background: transparent; color: var(--text); }
+.seg button.active { background: #ffffff; color: var(--text); font-weight: 500; box-shadow: 0 1px 3px rgba(31,35,41,.14); }
+.metric-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); display: grid; grid-template-columns: repeat(4, 1fr); margin-bottom: 26px; overflow: hidden; }
+.metric { padding: 20px 16px; text-align: center; min-width: 0; }
+.metric + .metric { border-left: 1px solid var(--border); }
+.metric .ml { color: var(--muted); font-size: 12.5px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.metric .ml svg { width: 15px; height: 15px; color: var(--primary); flex: 0 0 15px; }
+.metric .mv { font-size: 24px; font-weight: 650; margin-top: 10px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.metric .mv small { font-size: 12px; color: var(--muted); font-weight: 400; letter-spacing: 0; }
+.blk { margin-bottom: 26px; }
+.blk > .blk-title { font-size: 13px; font-weight: 550; margin: 0 2px 8px; }
+.card2 { background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+.card2 .c2-head { padding: 12px 16px 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.card2 .c2-desc { color: var(--muted); font-size: 12px; min-width: 0; }
+.card2 .c2-body { padding: 12px 16px 16px; }
+.hrow { padding: 9px 0; }
+.hrow .hr-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; margin-bottom: 6px; }
+.hrow .hr-top .l { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hrow .hr-top .r { color: var(--muted); flex: 0 0 auto; }
+.hrow .hr-top .r b { color: var(--text); font-weight: 550; }
+.hrow .hr-track { height: 6px; border-radius: 999px; background: var(--muted-bg); overflow: hidden; }
+.hrow .hr-fill { height: 100%; border-radius: 999px; background: var(--primary); opacity: .8; }
+.hrow .hr-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.foot-note { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin-top: 12px; }
+/* 图表 */
+#creditChart, #tokenChart { position: relative; height: 220px; display: flex; align-items: flex-end; gap: 3px; padding: 6px 2px 0; }
+#creditChart .bar, #tokenChart .bar { flex: 1; min-width: 4px; max-width: 46px; margin: 0 auto; background: var(--primary); border-radius: 4px 4px 2px 2px; opacity: .85; position: relative; cursor: default; transition: opacity .12s; }
+#creditChart .bar:hover, #tokenChart .bar:hover { opacity: 1; }
+#creditChart .bar.zero, #tokenChart .bar.zero { background: #e5e7eb; opacity: 1; }
+#tokenChart .bar.b2 { background: #8fb8a2; }
+#chartSvg { position: absolute; inset: 0; pointer-events: none; }
+#chartTip { position: absolute; background: #2c3038; border: 1px solid #2c3038; color: #fff; font-size: 11.5px; padding: 6px 10px; border-radius: 8px; pointer-events: none; white-space: nowrap; transform: translate(-50%, -110%); display: none; z-index: 5; line-height: 1.6; }
+/* 表格 */
+.tbl-wrap { overflow-x: auto; }
+table.tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.tbl th { text-align: left; color: var(--muted); font-weight: 500; padding: 9px 12px; background: var(--muted-bg); border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.tbl td { padding: 9px 12px; border-bottom: 1px solid var(--muted-bg); white-space: nowrap; }
+table.tbl td.ell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+table.tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pager { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 2px; color: var(--muted); font-size: 12.5px; }
+.oauth-url { word-break: break-all; font-size: 12px; background: var(--muted-bg); border-radius: 8px; padding: 9px 11px; line-height: 1.6; max-height: 96px; overflow-y: auto; }
+.oauth-url a { color: var(--primary-hover); }
+.step-line { font-size: 12.5px; color: var(--muted); line-height: 1.9; }
+.step-line b { color: var(--text); font-weight: 500; }
+/* ───── 加载动画 ───── */
+.loading-wrap { padding: 34px 0; display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; }
+.loading-ring { width: 30px; height: 30px; border: 3px solid var(--muted-bg); border-top-color: var(--primary); border-radius: 50%; animation: sp .8s linear infinite; }
+.loading-txt { color: var(--muted); font-size: 12.5px; }
+.loading-txt::after { content: ''; display: inline-block; width: 1.6em; text-align: left; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+.skel { background: linear-gradient(90deg, var(--muted-bg) 25%, var(--border) 45%, var(--muted-bg) 65%); background-size: 240% 100%; animation: skel 1.3s ease infinite; border-radius: 8px; }
+@keyframes skel { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+.skel-row { height: 13px; margin: 9px 0; }
+</style>
+</head>
+<body>
+  <nav id="sidebar">
+    <div class="logo"><div class="mark">
+      <svg viewBox="0 0 1024 1024">
+        <rect width="1024" height="1024" rx="230" fill="#fbfdfa"/>
+        <rect x="10" y="10" width="1004" height="1004" rx="220" fill="none" stroke="#e4eee6" stroke-width="14"/>
+        <path fill="#42624b" d="M 264 300 H 536 Q 600 300 600 364 V 496 H 526 Q 492 496 492 530 V 590 H 264 Q 200 590 200 526 V 364 Q 200 300 264 300 Z"/>
+        <path fill="#42624b" d="M 472 590 H 620 L 546 674 Z"/>
+        <path fill="#42624b" d="M 498 534 H 760 Q 824 534 824 598 V 730 Q 824 794 760 794 H 498 Q 434 794 434 730 V 598 Q 434 534 498 534 Z"/>
+        <path fill="#fbfdfa" d="M 620 610 V 628 H 762 Q 780 664 762 700 H 620 V 718 L 540 664 Z"/>
+      </svg></div><div class="name">Qoder Switch</div></div>
+    <div class="nav-item active" data-page="accounts">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg><span data-zh="账号" data-en="Accounts">账号</span></div>
+    <div class="nav-item" data-page="sessions">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 0 1-8 8H4l2.5-2.5A8 8 0 1 1 21 12z"/></svg><span data-zh="会话" data-en="Sessions">会话</span></div>
+    <div class="nav-item" data-page="credits">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg><span data-zh="积分统计" data-en="Credit Stats">积分统计</span></div>
+    <div class="nav-item" data-page="tokens">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4.5 13.5H11L9.5 22 19 9.5h-6.5L13 2z"/></svg><span data-zh="Token 统计" data-en="Token Stats">Token 统计</span></div>
+    <div class="nav-item" data-page="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span data-zh="设置" data-en="Settings">设置</span></div>
+    <div class="foot">v1.5.2<br><span data-zh="账号 · 会话 · 统计" data-en="Accounts · Sessions · Stats">账号 · 会话 · 统计</span><br><span data-zh="国际版 + 国内版" data-en="Intl + CN editions">国际版 + 国内版</span></div>
+  </nav>
+
+  <main id="main">
+    <!-- 账号页 -->
+    <section class="page active" id="page-accounts">
+      <h1 class="pt" data-zh="账号" data-en="Accounts">账号</h1>
+      <p class="pd" data-zh="管理 Qoder 国际版 / 国内版的登录账号，一键切换、领取积分" data-en="Manage Qoder Intl / CN login accounts: one-click switch and credit claiming">管理 Qoder 国际版 / 国内版的登录账号，一键切换、领取积分</p>
+      <div id="accountsBody"></div>
+    </section>
+
+    <!-- 会话页 -->
+    <section class="page" id="page-sessions">
+      <h1 class="pt" data-zh="会话" data-en="Sessions">会话</h1>
+      <p class="pd" data-zh="管理各版本本地会话，复制副本、关联同步（写操作会自动退出对应应用）" data-en="Manage local sessions per edition: copy, link and sync (writes quit the IDE first)">管理各版本本地会话，复制副本、关联同步（写操作会自动退出对应应用）</p>
+      <div class="ed-tabs" id="sessEdTabs"></div>
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <input class="search" id="sessSearch" data-zh-ph="搜索标题或项目路径…" data-en-ph="Search title or project path…" placeholder="搜索标题或项目路径…">
+        <button data-zh="搜索" data-en="Search" onclick="loadSessions()">搜索</button>
+        <button class="primary" data-zh="刷新" data-en="Refresh" onclick="loadSessions(true)">刷新</button>
+      </div>
+      <div class="section">
+        <div class="sec-head"><h2 data-zh="关联会话" data-en="Linked Groups">关联会话</h2><span class="pill" id="grpCount"></span></div>
+        <div id="groupsBody"><div class="empty" data-zh="暂无关联组 —— 复制会话副本后自动建立关联" data-en="No linked groups yet — copy a session to create one">暂无关联组 —— 复制会话副本后自动建立关联</div></div>
+      </div>
+      <div class="section">
+        <div class="sec-head"><h2 data-zh="会话列表" data-en="Session List">会话列表</h2><span class="pill" id="sessCount"></span></div>
+        <div class="filter-pills" id="sessFilters"></div>
+        <div class="sess-grid" id="sessGrid"></div>
+      </div>
+    </section>
+
+    <!-- 积分统计页（wb-switch 同款布局） -->
+    <section class="page" id="page-credits">
+      <div class="page-head">
+        <div><h1 data-zh="积分统计" data-en="Credit Stats">积分统计</h1><div class="ph-sub" id="creditUpdated">当前数据更新于 —</div></div>
+        <div class="ph-ops">
+          <div class="seg" id="creditViewTabs"></div>
+          <button class="primary" id="creditRefreshBtn" data-zh="刷新统计" data-en="Refresh" onclick="loadCreditStats(true)">刷新统计</button>
+        </div>
+      </div>
+      <div class="page-toolbar"><div id="shareRangeDD"></div></div>
+      <div class="metric-card" id="creditMetrics"></div>
+      <div class="blk">
+        <div class="blk-title" data-zh="账号消耗构成" data-en="Usage by Account">账号消耗构成</div>
+        <div class="card2">
+          <div class="c2-head"><div class="c2-desc" data-zh="按各账号在所选范围内的积分消耗占比展示" data-en="Share of credit usage per account within the selected range">按各账号在所选范围内的积分消耗占比展示</div></div>
+          <div class="c2-body" id="shareBody"></div>
+        </div>
+      </div>
+      <div class="blk">
+        <div class="blk-title" data-zh="官方积分消耗" data-en="Official Credit Usage">官方积分消耗</div>
+        <div class="card2">
+          <div class="c2-head"><div class="c2-desc" id="chartDesc" data-zh="来自 Qoder 官方每日消耗汇总" data-en="Daily usage summary from the official Qoder API">来自 Qoder 官方每日消耗汇总</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <div class="seg" id="chartAccTabs"></div>
+              <div class="dd" id="chartRangeDD"></div>
+            </div></div>
+          <div class="c2-body">
+            <div id="creditChart"></div>
+            <div class="foot-note"><span id="chartSum"></span><span id="chartUpdated"></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="blk">
+        <div class="blk-title" data-zh="积分明细" data-en="Quota Detail">积分明细</div>
+        <div class="card2">
+          <div class="c2-head"><div class="c2-desc" id="detailDesc" data-zh="各账号套餐与加量包余量" data-en="Plan and add-on quota per account">各账号套餐与加量包余量</div>
+            <div class="seg" id="detailAccTabs"></div></div>
+          <div class="c2-body" id="creditDetailBody"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Token 统计页 -->
+    <section class="page" id="page-tokens">
+      <div class="page-head">
+        <div><h1 data-zh="Token 统计" data-en="Token Stats">Token 统计</h1><div class="ph-sub" data-zh="基于本地会话内容估算 · 官方不公开逐请求真实 token 数" data-en="Estimated from local session content · real per-request token counts are not public">基于本地会话内容估算 · 官方不公开逐请求真实 token 数</div></div>
+        <div class="ph-ops">
+          <div class="seg" id="tokenSrcTabs"></div>
+          <div class="seg" id="tokenFmtSeg"></div>
+          <button class="primary" data-zh="刷新" data-en="Refresh" onclick="loadTokenStats(true)">刷新</button>
+        </div>
+      </div>
+      <div class="page-toolbar"><div id="tokenRangeDD"></div></div>
+      <div class="metric-card" id="tokenMetrics"></div>
+      <div class="blk">
+        <div class="blk-title" data-zh="每日 Token 消耗" data-en="Daily Token Usage">每日 Token 消耗</div>
+        <div class="card2">
+          <div class="c2-head"><div class="c2-desc" data-zh="柱 = 当日消耗 Tokens（输入 + 输出，估算）" data-en="Bar = tokens used that day (input + output, estimated)">柱 = 当日消耗 Tokens（输入 + 输出，估算）</div></div>
+          <div class="c2-body">
+            <div id="tokenChart"></div>
+            <div class="foot-note"><span id="tokenChartSum"></span><span id="tokenChartUpdated"></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="blk">
+        <div class="blk-title" data-zh="消耗分布" data-en="Distribution">消耗分布</div>
+        <div class="card2">
+          <div class="c2-head"><div class="c2-desc" id="distDesc" data-zh="消耗 Tokens 按项目 / 模型分布" data-en="Token usage by project / model">消耗 Tokens 按项目 / 模型分布</div>
+            <div class="seg" id="distTabs"></div></div>
+          <div class="c2-body" id="distBody"></div>
+        </div>
+      </div>
+      <div class="blk">
+        <div class="blk-title">请求明细</div>
+        <div class="card2">
+          <div class="tbl-wrap">
+            <table class="tbl"><thead><tr>
+              <th data-zh="时间" data-en="Time">时间</th><th data-zh="模型" data-en="Model">模型</th><th data-zh="项目" data-en="Project">项目</th><th data-zh="会话" data-en="Session">会话</th><th style="text-align:right" data-zh="输入" data-en="Input">输入</th><th style="text-align:right" data-zh="输出" data-en="Output">输出</th><th style="text-align:right" data-zh="耗时" data-en="Duration">耗时</th>
+            </tr></thead><tbody id="tokenReqBody"></tbody></table>
+          </div>
+          <div class="pager"><span id="reqPagerInfo"></span><span style="display:flex;gap:6px">
+            <button class="sm" id="reqPrev" data-zh="上一页" data-en="Prev" onclick="reqPage(-1)">上一页</button>
+            <button class="sm" id="reqNext" data-zh="下一页" data-en="Next" onclick="reqPage(1)">下一页</button></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 设置页 -->
+    <section class="page" id="page-settings">
+      <h1 class="pt" data-zh="设置" data-en="Settings">设置</h1>
+      <p class="pd" data-zh="自动领取与数据管理" data-en="Auto-claim and data management">自动领取与数据管理</p>
+      <div class="section">
+        <div class="sec-head"><h2 data-zh="外观" data-en="Appearance">外观</h2></div>
+        <div class="row">
+          <div class="rt"><b data-zh="主题" data-en="Theme">主题</b><span data-zh="浅色 / 深色，立即生效并自动记住" data-en="Light / dark, applies instantly and is remembered">浅色 / 深色，立即生效并自动记住</span></div>
+          <div class="seg" id="themeSeg"></div>
+        </div>
+        <div class="row">
+          <div class="rt"><b data-zh="语言" data-en="Language">语言</b><span data-zh="跟随系统，或手动选择中文 / English（重新打开生效）" data-en="Follow system, or choose 中文 / English (takes effect after reload)">跟随系统，或手动选择中文 / English（重新打开生效）</span></div>
+          <select class="sel" id="langSel" onchange="setPref('lang', this.value)"></select>
+        </div>
+        <div class="row">
+          <div class="rt"><b data-zh="时区" data-en="Time Zone">时区</b><span data-zh="用于界面时间显示，统计口径仍按系统时区" data-en="For time display only; statistics still use the system time zone">用于界面时间显示，统计口径仍按系统时区</span></div>
+          <select class="sel" id="tzSel" onchange="setPref('timezone', this.value)"></select>
+        </div>
+      </div>
+      <div class="section">
+        <div class="sec-head"><h2 data-zh="每日积分自动领取" data-en="Daily Credit Auto-Claim">每日积分自动领取</h2></div>
+        <div class="row">
+          <div class="rt"><b data-zh="应用内自动领取" data-en="Auto-claim in app">应用内自动领取</b><span data-zh="应用运行时每 10 分钟检查一次可领活动" data-en="Checks claimable campaigns every 10 minutes while running">应用运行时每 10 分钟检查一次可领活动</span></div>
+          <div class="toggle" id="autoToggle" onclick="toggleAuto()"></div>
+        </div>
+        <div class="row">
+          <div class="rt"><b data-zh="手动全部领取" data-en="Claim all now">手动全部领取</b><span id="lastRun"></span></div>
+          <button class="primary" data-zh="立即全部领取" data-en="Claim All" onclick="claimAllBtn(this)">立即全部领取</button>
+        </div>
+        <div class="row">
+          <div class="rt"><b data-zh="系统定时任务" data-en="Scheduled task (launchd)">系统定时任务</b><span data-zh="不开应用也能领：每天 10:05 / 22:05 由 launchd 执行" data-en="Claim without opening the app: launchd runs daily at 10:05 / 22:05">不开应用也能领：每天 10:05 / 22:05 由 launchd 执行</span></div>
+          <button data-zh="安装 / 说明" data-en="Install / Help" onclick="showLaunchdHelp()">安装 / 说明</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="sec-head"><h2 data-zh="数据" data-en="Data">数据</h2></div>
+        <div class="row">
+          <div class="rt"><b data-zh="导出账号备份" data-en="Export accounts">导出账号备份</b><span data-zh="导出到「下载」目录（含备注与登录态）" data-en="Exports to Downloads (notes and login states included)">导出到「下载」目录（含备注与登录态）</span></div>
+          <button data-zh="导出" data-en="Export" onclick="doExport()">导出</button>
+        </div>
+        <div class="row">
+          <div class="rt"><b data-zh="导入账号备份" data-en="Import accounts">导入账号备份</b><span data-zh="从 JSON 备份文件导入/更新" data-en="Import / update from a JSON backup file">从 JSON 备份文件导入/更新</span></div>
+          <button data-zh="导入" data-en="Import" onclick="doImport()">导入</button>
+        </div>
+        <div class="row">
+          <div class="rt"><b data-zh="数据目录" data-en="Data directory">数据目录</b><span data-zh="账号库、会话备份与领取日志" data-en="Account store, session backups and claim logs">账号库、会话备份与领取日志</span></div>
+          <code class="path">~/.qoder-switch/</code>
+        </div>
+      </div>
+      <div class="section">
+        <div class="sec-head"><h2 data-zh="领取记录" data-en="Claim Log">领取记录</h2><span style="flex:1"></span><button class="sm" data-zh="清除记录" data-en="Clear" onclick="clearClaimLog(this)">清除记录</button></div>
+        <div id="claimLog" data-zh="暂无记录" data-en="No records yet">暂无记录</div>
+      </div>
+    </section>
+  </main>
+
+  <div id="modalMask"><div id="modal">
+    <div class="mh" id="modalTitle"></div>
+    <div class="mtabs" id="modalTabs" style="display:none"></div>
+    <div class="mb" id="modalBody"></div>
+    <div class="mf" id="modalFoot"></div>
+  </div></div>
+
+  <div id="progress"><div id="progressBox">
+    <div class="pt"><span class="spin"></span><span id="progressTitle"></span></div>
+    <div id="progressSteps"></div>
+  </div></div>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
