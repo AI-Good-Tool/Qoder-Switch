@@ -7,7 +7,46 @@ on:
   workflow_dispatch:
 
 jobs:
+  # 单独创建/获取 Release，避免并行构建任务同时建 Release 的竞态（422 already_exists）
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read app version
+        id: ver
+        run: echo "version=$(python3 -c "import json;print(json.load(open('src-tauri/tauri.conf.json'))['version'])")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/github-script@v7
+        id: create
+        with:
+          script: |
+            const tag = 'v${{ steps.ver.outputs.version }}';
+            const owner = context.repo.owner, repo = context.repo.repo;
+            try {
+              const existing = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              core.info(`Release ${tag} already exists (id=${existing.data.id}), reusing it`);
+              return existing.data.id;
+            } catch (e) {
+              if (e.status !== 404) throw e;
+              const created = await github.rest.repos.createRelease({
+                owner, repo,
+                tag_name: tag,
+                name: `Qoder Switch ${tag}`,
+                body: '前往 Assets 下载对应平台的安装包。macOS：Apple Silicon 下载 aarch64.dmg，Intel 下载 x64.dmg；Windows 下载 x64-setup.exe。',
+                draft: false,
+                prerelease: false,
+              });
+              core.info(`Created release ${tag} (id=${created.data.id})`);
+              return created.data.id;
+            }
+
   build:
+    needs: create-release
     permissions:
       contents: write
     strategy:
@@ -42,9 +81,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v__VERSION__
-          releaseName: 'Qoder Switch v__VERSION__'
-          releaseBody: '前往 Assets 下载对应平台的安装包。macOS：Apple Silicon 下载 aarch64.dmg，Intel 下载 x64.dmg；Windows 下载 x64-setup.exe。'
-          releaseDraft: false
-          prerelease: false
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}

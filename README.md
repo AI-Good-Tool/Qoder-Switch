@@ -14,9 +14,9 @@ Qoder **国内版 / 国际版** 多账号切换与每日积分自动领取桌面
 
 | 平台 | 安装包 | 安装方式 |
 | --- | --- | --- |
-| macOS Apple Silicon（M 系列，arm64） | `Qoder-Switch_<版本>_aarch64.dmg` | 打开 DMG，将 `Qoder Switch.app` 拖入「应用程序」 |
-| macOS Intel（x86_64） | `Qoder-Switch_<版本>_x64.dmg` | 打开 DMG，将 `Qoder Switch.app` 拖入「应用程序」 |
-| Windows x64 | `Qoder-Switch_<版本>_x64-setup.exe` | 运行安装程序并按提示完成安装 |
+| macOS Apple Silicon（M 系列，arm64） | `Qoder.Switch_<版本>_aarch64.dmg` | 打开 DMG，将 `Qoder Switch.app` 拖入「应用程序」 |
+| macOS Intel（x86_64） | `Qoder.Switch_<版本>_x64.dmg` | 打开 DMG，将 `Qoder Switch.app` 拖入「应用程序」 |
+| Windows x64 | `Qoder.Switch_<版本>_x64-setup.exe` | 运行安装程序并按提示完成安装 |
 
 macOS 首次启动若提示无法验证开发者，先在 Finder 中按住 Control 点击应用并选择「打开」，或前往「系统设置 → 隐私与安全性」选择「仍要打开」。仅当安装包来自上述官方 Releases、且系统仍提示「已损坏」时，再执行：
 
