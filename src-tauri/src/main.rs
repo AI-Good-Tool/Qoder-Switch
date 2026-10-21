@@ -5,6 +5,7 @@ mod anthropic;
 mod custom_tools;
 mod qcore;
 mod qproxy;
+mod qroutes;
 mod qsession;
 mod qstats;
 mod qusage;
@@ -660,6 +661,7 @@ fn main() {
             qproxy::gateway_start,
             qproxy::gateway_stop,
             qproxy::gateway_save,
+            qproxy::gateway_save_route,
             qproxy::gateway_generate_key,
             qproxy::gateway_set_key,
             qproxy::gateway_models,

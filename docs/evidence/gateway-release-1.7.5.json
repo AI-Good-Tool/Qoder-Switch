@@ -1,0 +1,24 @@
+{
+  "version": "1.7.5",
+  "artifact": "Qoder-Switch_1.7.5_macos_arm64.dmg",
+  "bytes": 4224032,
+  "sha256": "b50018965c77d94fa1584e4c95d1f1769bfeb8a12615c49bd6e97614a3fa43de",
+  "javascriptSyntax": "passed",
+  "signature": "ad-hoc verified",
+  "notarized": false,
+  "changes": [
+    "consistent 40px request controls",
+    "localized placeholder and search icon",
+    "filter count and retention metadata",
+    "single empty state border",
+    "separate no matching results message",
+    "responsive control wrapping"
+  ],
+  "uiChecks": [
+    "desktop layout screenshot",
+    "search input",
+    "success and all result filters",
+    "empty and filtered empty states"
+  ],
+  "screenshot": "requests-1.7.5-preview.png"
+}

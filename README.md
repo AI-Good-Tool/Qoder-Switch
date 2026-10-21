@@ -1,6 +1,6 @@
 # Qoder Switch
 
-**1.7.4 本地模型网关**：参考 WorkBuddy API 桌面布局，提供 Claude Messages、Codex Responses 和 Chat Completions 接口，支持账号池、模型目录、请求诊断与实际用量。macOS 使用本机 Qoder 原生签名链路。[接入与兼容说明](docs/GATEWAY.md)。
+**1.8.0 本地模型网关**：参考 WorkBuddy API 桌面布局，提供 Claude Messages、Codex Responses 和 Chat Completions 接口，支持账号池、模型目录、请求诊断与实际用量。macOS 使用本机 Qoder 原生签名链路。[接入与兼容说明](docs/GATEWAY.md)。
 
 Qoder **国内版 / 国际版** 多账号切换与每日积分自动领取桌面 App（Tauri 2 + Rust），并提供积分统计与 Token 用量监控。
 

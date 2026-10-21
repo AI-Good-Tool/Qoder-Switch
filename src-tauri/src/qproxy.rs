@@ -13,7 +13,7 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     fs,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -35,17 +35,19 @@ pub struct Config {
     pub intl_endpoint: String,
     pub disabled_accounts: Vec<String>,
     pub strategy: String,
+    pub model_routes: BTreeMap<String, crate::qroutes::ModelRoute>,
 }
 impl Default for Config {
     fn default() -> Self {
         Self {
             port: 24818,
-            edition: "cn".into(),
+            edition: "both".into(),
             transport: "legacy".into(),
             cn_endpoint: "https://gateway.qoder.com.cn".into(),
             intl_endpoint: "https://api2.qoder.sh".into(),
             disabled_accounts: vec![],
             strategy: "roundRobin".into(),
+            model_routes: BTreeMap::new(),
         }
     }
 }
@@ -56,6 +58,9 @@ pub struct RequestLog {
     pub time: String,
     pub protocol: String,
     pub model: String,
+    pub requested_model: String,
+    pub real_model: String,
+    pub model_name: String,
     pub account: String,
     pub edition: String,
     pub status: String,
@@ -73,7 +78,7 @@ struct Runtime {
     shutdown: Option<oneshot::Sender<()>>,
     active: HashMap<String, usize>,
     cooldown: HashMap<String, Instant>,
-    cursor: usize,
+    cursors: HashMap<String, usize>,
     logs: VecDeque<RequestLog>,
     models: HashMap<String, Vec<Value>>,
     model_updated: HashMap<String, String>,
@@ -193,10 +198,10 @@ impl Gateway {
     pub fn snapshot(&self) -> Value {
         let c = self.config.lock().unwrap().clone();
         let r = self.runtime.lock().unwrap();
-        let models = public_catalog(r.models.get(&c.edition).map(Vec::as_slice).unwrap_or(&[]));
+        let models = crate::qroutes::catalog(&r.models, &c.model_routes, &c.edition);
         let accounts: Vec<Value> = self.accounts().iter().map(|a| json!({"id":a.id(),"enabled":!c.disabled_accounts.contains(&a.id()),"active":r.active.get(&a.id()).copied().unwrap_or(0),"cooldownSeconds":r.cooldown.get(&a.id()).map(|t|t.saturating_duration_since(Instant::now()).as_secs()).unwrap_or(0)})).collect();
         let logs: Vec<_> = r.logs.iter().rev().collect();
-        json!({"config":c,"apiKey":self.api_key(),"running":r.running,"active":r.active.values().sum::<usize>(),"accounts":accounts,"models":models,"modelUpdated":r.model_updated.get(&c.edition),"logs":logs,"error":r.error})
+        json!({"config":c,"apiKey":self.api_key(),"running":r.running,"active":r.active.values().sum::<usize>(),"accounts":accounts,"models":models,"catalogs":r.models,"modelUpdated":r.model_updated.values().max(),"catalogUpdated":r.model_updated,"logs":logs,"error":r.error})
     }
     pub fn save(&self, c: Config) -> Result<(), String> {
         validate_config(&c)?;
@@ -204,12 +209,16 @@ impl Gateway {
         if self.runtime.lock().unwrap().running
             && (current.transport != c.transport
                 || current.port != c.port
-                || current.edition != c.edition
                 || current.cn_endpoint != c.cn_endpoint
                 || current.intl_endpoint != c.intl_endpoint)
         {
-            return Err("请先停止服务再修改端口、地区或上游地址".into());
+            return Err("请先停止服务再修改端口、传输协议或上游地址".into());
         }
+        crate::qroutes::validate_aliases(&crate::qroutes::catalog(
+            &self.runtime.lock().unwrap().models,
+            &c.model_routes,
+            "both",
+        ))?;
         write_private(
             &data_file("settings.json"),
             &serde_json::to_vec_pretty(&c).unwrap(),
@@ -277,7 +286,32 @@ impl Gateway {
         }
     }
     pub async fn refresh_models(self: &Arc<Self>) -> Result<Value, String> {
-        let c = self.config.lock().unwrap().clone();
+        let mode = self.config.lock().unwrap().edition.clone();
+        let editions = if mode == "both" {
+            vec!["cn", "intl"]
+        } else {
+            vec![mode.as_str()]
+        };
+        let mut synced = Vec::new();
+        let mut warnings = Vec::new();
+        let mut count = 0;
+        for edition in editions {
+            match self.refresh_region_models(edition).await {
+                Ok(v) => {
+                    count += v["count"].as_u64().unwrap_or(0);
+                    synced.push(edition.to_owned());
+                }
+                Err(e) => warnings.push(format!("{edition}: {e}")),
+            }
+        }
+        if synced.is_empty() {
+            return Err(warnings.join("；"));
+        }
+        Ok(json!({"count":count,"synced":synced,"warnings":warnings}))
+    }
+    async fn refresh_region_models(self: &Arc<Self>, edition: &str) -> Result<Value, String> {
+        let mut c = self.config.lock().unwrap().clone();
+        c.edition = edition.into();
         let ed = c.edition.clone();
         let disabled = c.disabled_accounts.clone();
         let account = tokio::task::spawn_blocking(move || {
@@ -330,7 +364,7 @@ impl Gateway {
 fn validate_config(c: &Config) -> Result<(), String> {
     if !["legacy", "modelServer"].contains(&c.transport.as_str())
         || c.port == 0
-        || !["cn", "intl"].contains(&c.edition.as_str())
+        || !["cn", "intl", "both"].contains(&c.edition.as_str())
         || !["roundRobin", "expiryFirst"].contains(&c.strategy.as_str())
         || !valid_endpoint(&c.cn_endpoint)
         || !valid_endpoint(&c.intl_endpoint)
@@ -538,7 +572,7 @@ fn error(status: u16, message: &str, anthropic: bool) -> Response {
     (StatusCode::from_u16(status).unwrap(), Json(v)).into_response()
 }
 // Preserve official display names at the public boundary; never persist aliases as upstream IDs.
-fn public_catalog(models: &[Value]) -> Vec<Value> {
+pub(crate) fn public_catalog(models: &[Value]) -> Vec<Value> {
     models
         .iter()
         .map(|model| {
@@ -576,8 +610,7 @@ fn resolve_model(models: &[Value], requested: &str) -> Option<Value> {
 async fn models(State(g): State<Arc<Gateway>>) -> Response {
     let c = g.config.lock().unwrap().clone();
     let r = g.runtime.lock().unwrap();
-    let rows: Vec<_> = public_catalog(r.models.get(&c.edition).map(Vec::as_slice).unwrap_or(&[]))
-        .iter().map(|m| json!({"id":m["publicId"],"name":m.get("name").unwrap_or(&m["id"]),"display_name":m.get("name").unwrap_or(&m["id"]),"qoder_id":m["id"],"object":"model","type":"model","created":0,"created_at":"1970-01-01T00:00:00Z","owned_by":"qoder"})).collect();
+    let rows:Vec<_>=crate::qroutes::catalog(&r.models,&c.model_routes,&c.edition).into_iter().filter(|m|m["available"]==true).map(|m|json!({"id":m["publicId"],"name":m["publicId"],"display_name":m["publicId"],"qoder_id":m["targets"][0]["id"],"upstreams":m["targets"].as_array().unwrap().iter().map(|t|json!({"edition":t["edition"],"id":t["id"],"name":t["name"]})).collect::<Vec<_>>(),"object":"model","type":"model","created":0,"created_at":"1970-01-01T00:00:00Z","owned_by":"qoder"})).collect();
     Json(json!({"object":"list","first_id":rows.first().map(|m|&m["id"]),"last_id":rows.last().map(|m|&m["id"]),"has_more":false,"data":rows})).into_response()
 }
 async fn count_tokens(State(_g): State<Arc<Gateway>>, Json(mut input): Json<Value>) -> Response {
@@ -662,19 +695,22 @@ async fn select(
     g: Arc<Gateway>,
     headers: &HeaderMap,
     p: Protocol,
-    model: &str,
-) -> Result<(qcore::Account, Lease, Config), String> {
+    requested: &str,
+    route: &Value,
+) -> Result<(qcore::Account, Lease, Config, Value), String> {
     let reader = g.clone();
     let all = tokio::task::spawn_blocking(move || reader.accounts())
         .await
         .map_err(|_| "读取账号失败")?;
-    let config = g.config.lock().unwrap().clone();
+    let mut config = g.config.lock().unwrap().clone();
     let mut r = g.runtime.lock().unwrap();
     let pinned = headers.get("x-account-id").and_then(|v| v.to_str().ok());
+    let targets = route["targets"].as_array().unwrap();
     let mut eligible: Vec<_> = all
         .into_iter()
-        .filter(|a| {
-            a.edition == config.edition
+        .enumerate()
+        .filter(|(_, a)| {
+            targets.iter().any(|t| t["edition"] == a.edition)
                 && !a.token.is_empty()
                 && !expired(a)
                 && !config.disabled_accounts.contains(&a.id())
@@ -687,15 +723,28 @@ async fn select(
         return Err("没有可用账号：请检查地区、有效期、停用状态、冷却或单账号并发上限（2）".into());
     }
     if config.strategy == "expiryFirst" {
-        eligible.sort_by(|a, b| a.expiresAt.cmp(&b.expiresAt));
+        eligible.sort_by_key(|(_, a)| {
+            chrono::DateTime::parse_from_rfc3339(&a.expiresAt)
+                .map(|t| t.timestamp())
+                .unwrap_or(i64::MAX)
+        });
     }
+    let route_id = route["routeId"].as_str().unwrap();
+    let cursor = r.cursors.get(route_id).copied().unwrap_or(0);
     let index = if config.strategy == "roundRobin" {
-        r.cursor % eligible.len()
+        eligible.iter().position(|(i, _)| *i >= cursor).unwrap_or(0)
     } else {
         0
     };
-    r.cursor = r.cursor.wrapping_add(1);
-    let account = eligible.swap_remove(index);
+    let (position, account) = eligible.remove(index);
+    r.cursors
+        .insert(route_id.into(), position.saturating_add(1));
+    let model_info = targets
+        .iter()
+        .find(|t| t["edition"] == account.edition)
+        .unwrap()
+        .clone();
+    config.edition = account.edition.clone();
     let id = account.id();
     *r.active.entry(id.clone()).or_default() += 1;
     drop(r);
@@ -704,7 +753,14 @@ async fn select(
         id: request_id.clone(),
         time: chrono::Utc::now().to_rfc3339(),
         protocol: p.label().into(),
-        model: model.into(),
+        model: route["publicId"].as_str().unwrap().into(),
+        requested_model: requested.into(),
+        real_model: model_info["id"].as_str().unwrap().into(),
+        model_name: model_info["name"]
+            .as_str()
+            .or(model_info["id"].as_str())
+            .unwrap()
+            .into(),
         account: if account.note.is_empty() {
             account.name.clone()
         } else {
@@ -729,6 +785,7 @@ async fn select(
             start: Instant::now(),
         },
         config,
+        model_info,
     ))
 }
 async fn run(g: Arc<Gateway>, headers: HeaderMap, input: Value, protocol: Protocol) -> Response {
@@ -756,27 +813,27 @@ async fn run(g: Arc<Gateway>, headers: HeaderMap, input: Value, protocol: Protoc
     if !body["messages"].as_array().is_some_and(|a| !a.is_empty()) {
         return error(400, "messages 必须为非空数组", is_anthropic);
     }
-    let (account, mut lease, config) = match select(g.clone(), &headers, protocol, &model).await {
-        Ok(v) => v,
-        Err(e) => return error(503, &e, is_anthropic),
-    };
-    let model_info = {
+    let route = {
+        let config = g.config.lock().unwrap();
         let runtime = g.runtime.lock().unwrap();
-        resolve_model(
-            runtime
-                .models
-                .get(&config.edition)
-                .map(Vec::as_slice)
-                .unwrap_or(&[]),
+        crate::qroutes::resolve(
+            &crate::qroutes::catalog(&runtime.models, &config.model_routes, &config.edition),
             &model,
         )
     };
-    if model_info.is_none() {
-        let e = "模型不在当前地区目录中，请先同步目录并使用准确的模型 ID";
-        lease.finish("failed", 400, e, Value::Null);
-        return error(400, e, is_anthropic);
-    }
-    let model_info = model_info.unwrap();
+    let Some(route) = route else {
+        return error(
+            400,
+            "模型或别名不存在（内部 ID 有歧义时请使用别名），请同步模型目录",
+            is_anthropic,
+        );
+    };
+    let (account, mut lease, config, model_info) =
+        match select(g.clone(), &headers, protocol, &model, &route).await {
+            Ok(v) => v,
+            Err(e) => return error(503, &e, is_anthropic),
+        };
+    let model = route["publicId"].as_str().unwrap().to_owned();
     let upstream_model = model_info["id"].as_str().unwrap().to_owned();
     body["model"] = json!(upstream_model);
     if is_anthropic {
@@ -1340,6 +1397,43 @@ pub async fn gateway_save(
     Ok(g.snapshot())
 }
 #[tauri::command]
+pub fn gateway_save_route(
+    g: tauri::State<'_, Arc<Gateway>>,
+    route_id: String,
+    alias: String,
+    cn: Option<String>,
+    intl: Option<String>,
+) -> Result<Value, String> {
+    let mut config = g.config.lock().unwrap().clone();
+    let runtime = g.runtime.lock().unwrap();
+    if !crate::qroutes::catalog(&runtime.models, &config.model_routes, "both")
+        .iter()
+        .any(|r| r["routeId"] == route_id)
+    {
+        return Err("模型映射不存在，请刷新目录".into());
+    }
+    if cn.is_none() && intl.is_none() {
+        return Err("请至少选择一个地区的真实模型".into());
+    }
+    for (edition, id) in [("cn", &cn), ("intl", &intl)] {
+        if let Some(id) = id {
+            if !runtime
+                .models
+                .get(edition)
+                .is_some_and(|rows| rows.iter().any(|m| m["id"] == *id))
+            {
+                return Err(format!("{edition} 模型不在缓存目录中，请先同步目录"));
+            }
+        }
+    }
+    drop(runtime);
+    config
+        .model_routes
+        .insert(route_id, crate::qroutes::ModelRoute { alias, cn, intl });
+    g.save(config)?;
+    Ok(json!({"ok":true}))
+}
+#[tauri::command]
 pub fn gateway_generate_key() -> String {
     random_key()
 }
@@ -1412,6 +1506,17 @@ mod integration_tests {
         tokio::task::JoinHandle<()>,
         tokio::task::JoinHandle<()>,
     ) {
+        fixture_with_regions(false).await
+    }
+    async fn fixture_with_regions(
+        dual: bool,
+    ) -> (
+        Arc<Gateway>,
+        String,
+        Arc<AtomicUsize>,
+        tokio::task::JoinHandle<()>,
+        tokio::task::JoinHandle<()>,
+    ) {
         let count = Arc::new(AtomicUsize::new(0));
         let counter = count.clone();
         let upstream = Router::new().route("/model/v1/chat/completions", post(move |Json(body):Json<Value>| {
@@ -1419,7 +1524,7 @@ mod integration_tests {
             async move {
                 counter.fetch_add(1, Ordering::SeqCst);
                 let mut chunks = Vec::new();
-                if !["fixture", "failure", "truncated"].contains(&body["model"].as_str().unwrap_or("")) {chunks.push(json!({"code":400}));}
+                if !["fixture", "intl-fixture", "cn-only", "intl-only", "failure", "truncated"].contains(&body["model"].as_str().unwrap_or("")) {chunks.push(json!({"code":400}));}
                 else if body["model"]=="failure" { chunks.push(json!({"code":11128})); }
                 else if body["messages"].as_array().unwrap().iter().any(|m|m["role"]=="tool") || !body["tools"].as_array().is_some_and(|v|!v.is_empty()) {
                     chunks.push(json!({"choices":[{"index":0,"delta":{"content":"fixture "}}]}));
@@ -1450,16 +1555,31 @@ mod integration_tests {
                 .collect(),
         );
         let g = Arc::new(Gateway {
-            fixture_accounts: Some(vec![qcore::Account {
-                edition: "cn".into(),
-                uid: "fixture".into(),
-                name: "Offline fixture".into(),
-                token: "never-a-real-token".into(),
-                ..Default::default()
-            }]),
+            fixture_accounts: Some(if dual {
+                ["cn", "intl", "cn", "intl"]
+                    .iter()
+                    .enumerate()
+                    .map(|(i, ed)| qcore::Account {
+                        edition: ed.to_string(),
+                        uid: format!("fixture{i}"),
+                        name: format!("Account {i}"),
+                        token: "never-real".into(),
+                        ..Default::default()
+                    })
+                    .collect()
+            } else {
+                vec![qcore::Account {
+                    edition: "cn".into(),
+                    uid: "fixture".into(),
+                    name: "Offline fixture".into(),
+                    token: "never-real".into(),
+                    ..Default::default()
+                }]
+            }),
             config: Mutex::new(Config {
                 transport: "modelServer".into(),
-                cn_endpoint: upstream_url,
+                cn_endpoint: upstream_url.clone(),
+                intl_endpoint: upstream_url,
                 ..Default::default()
             }),
             key: Mutex::new("fixture-local-key".into()),
@@ -1473,6 +1593,225 @@ mod integration_tests {
             axum::serve(listener, app).await.unwrap();
         });
         (g, url, count, task, upstream_task)
+    }
+    #[tokio::test]
+    async fn both_regions_route_per_model_and_record_real_identity() {
+        let (g, url, count, task, upstream) = fixture_with_regions(true).await;
+        {
+            let mut runtime = g.runtime.lock().unwrap();
+            runtime.models = HashMap::from([
+                (
+                    "cn".into(),
+                    vec![
+                        json!({"id":"fixture","name":"Shared"}),
+                        json!({"id":"cn-only","name":"China Only"}),
+                    ],
+                ),
+                (
+                    "intl".into(),
+                    vec![
+                        json!({"id":"intl-fixture","name":"Shared"}),
+                        json!({"id":"intl-only","name":"International Only"}),
+                    ],
+                ),
+            ]);
+        }
+        g.config.lock().unwrap().model_routes.insert(
+            "Shared".into(),
+            crate::qroutes::ModelRoute {
+                alias: "my-shared".into(),
+                cn: Some("fixture".into()),
+                intl: Some("intl-fixture".into()),
+            },
+        );
+        let client = reqwest::Client::new();
+        let list: Value = client
+            .get(format!("{url}/v1/models"))
+            .bearer_auth(g.api_key())
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert!(list["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["id"] == "my-shared"));
+        assert!(!list["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["id"] == "Shared"));
+        for expected in ["cn", "intl", "cn", "intl", "cn"] {
+            let response = client
+                .post(format!("{url}/v1/chat/completions"))
+                .bearer_auth(g.api_key())
+                .json(&json!({"model":"my-shared","messages":[{"role":"user","content":"test"}]}))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), 200);
+            assert_eq!(
+                response.json::<Value>().await.unwrap()["model"],
+                "my-shared"
+            );
+            let runtime = g.runtime.lock().unwrap();
+            let log = runtime.logs.back().unwrap();
+            assert_eq!(log.edition, expected);
+            assert_eq!(log.model, "my-shared");
+            assert_eq!(
+                log.real_model,
+                if expected == "cn" {
+                    "fixture"
+                } else {
+                    "intl-fixture"
+                }
+            );
+        }
+        for (model, region) in [("China Only", "cn"), ("International Only", "intl")] {
+            for _ in 0..3 {
+                let res = client
+                    .post(format!("{url}/v1/responses"))
+                    .bearer_auth(g.api_key())
+                    .json(&json!({"model":model,"input":"test"}))
+                    .send()
+                    .await
+                    .unwrap();
+                assert_eq!(res.status(), 200);
+                let _ = res.bytes().await;
+                assert_eq!(
+                    g.runtime.lock().unwrap().logs.back().unwrap().edition,
+                    region
+                );
+            }
+        }
+        for streaming in [false, true] {
+            for (path, body) in [
+                (
+                    "/v1/messages",
+                    json!({"model":"my-shared","messages":[{"role":"user","content":"test"}],"max_tokens":32,"stream":streaming}),
+                ),
+                (
+                    "/v1/responses",
+                    json!({"model":"my-shared","input":"test","stream":streaming}),
+                ),
+            ] {
+                let res = client
+                    .post(format!("{url}{path}"))
+                    .bearer_auth(g.api_key())
+                    .json(&body)
+                    .send()
+                    .await
+                    .unwrap();
+                assert_eq!(res.status(), 200);
+                let wire = res.text().await.unwrap();
+                assert!(wire.contains("my-shared"));
+                assert!(!wire.contains("intl-fixture"));
+                let runtime = g.runtime.lock().unwrap();
+                let log = runtime.logs.back().unwrap();
+                assert_eq!(log.model, "my-shared");
+                assert!(matches!(
+                    log.real_model.as_str(),
+                    "fixture" | "intl-fixture"
+                ));
+            }
+        }
+        // A pin to the other region must not widen the model's allowed account pool.
+        let before = count.load(Ordering::SeqCst);
+        let response = client
+            .post(format!("{url}/v1/chat/completions"))
+            .bearer_auth(g.api_key())
+            .header("x-account-id", "intl:fixture1")
+            .json(&json!({"model":"China Only","messages":[{"role":"user","content":"test"}]}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 503);
+        assert_eq!(count.load(Ordering::SeqCst), before);
+        // Disable both CN accounts: shared routes still work internationally; CN-only must fail closed.
+        g.config.lock().unwrap().disabled_accounts =
+            vec!["cn:fixture0".into(), "cn:fixture2".into()];
+        for (model, status) in [("my-shared", 200), ("China Only", 503)] {
+            let res = client
+                .post(format!("{url}/v1/chat/completions"))
+                .bearer_auth(g.api_key())
+                .json(&json!({"model":model,"messages":[{"role":"user","content":"test"}]}))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(res.status(), status);
+            let _ = res.bytes().await;
+        }
+        task.abort();
+        upstream.abort();
+    }
+    #[tokio::test]
+    async fn route_selection_respects_capacity_cooldown_and_strategy() {
+        let (g, _url, count, task, upstream) = fixture_with_regions(true).await;
+        let route = json!({"routeId":"shared","publicId":"alias","targets":[{"edition":"cn","id":"fixture"},{"edition":"intl","id":"intl-fixture"}]});
+        let mut held = Vec::new();
+        for _ in 0..8 {
+            let (_, lease, _, _) = select(
+                g.clone(),
+                &HeaderMap::new(),
+                Protocol::Chat,
+                "alias",
+                &route,
+            )
+            .await
+            .unwrap();
+            held.push(lease);
+        }
+        assert!(select(
+            g.clone(),
+            &HeaderMap::new(),
+            Protocol::Chat,
+            "alias",
+            &route
+        )
+        .await
+        .is_err());
+        drop(held);
+        {
+            let mut runtime = g.runtime.lock().unwrap();
+            runtime.cooldown.insert(
+                "cn:fixture0".into(),
+                Instant::now() + Duration::from_secs(30),
+            );
+            runtime.cooldown.insert(
+                "cn:fixture2".into(),
+                Instant::now() + Duration::from_secs(30),
+            );
+        }
+        let (account, lease, config, info) = select(
+            g.clone(),
+            &HeaderMap::new(),
+            Protocol::Chat,
+            "alias",
+            &route,
+        )
+        .await
+        .unwrap();
+        assert_eq!(account.edition, "intl");
+        assert_eq!(config.edition, "intl");
+        assert_eq!(info["id"], "intl-fixture");
+        drop(lease);
+        g.config.lock().unwrap().strategy = "expiryFirst".into();
+        let (_, lease, _, _) = select(
+            g.clone(),
+            &HeaderMap::new(),
+            Protocol::Chat,
+            "alias",
+            &route,
+        )
+        .await
+        .unwrap();
+        drop(lease);
+        assert_eq!(count.load(Ordering::SeqCst), 0);
+        task.abort();
+        upstream.abort();
     }
     #[tokio::test]
     async fn key_rotation_persists_and_rejects_old_key() {
@@ -1590,11 +1929,11 @@ mod integration_tests {
                         } else {
                             &events[0]["model"]
                         };
-                        assert_eq!(returned, model);
+                        assert_eq!(returned, "Official Fixture");
                     } else {
                         assert_eq!(
                             serde_json::from_str::<Value>(&wire).unwrap()["model"],
-                            model
+                            "Official Fixture"
                         );
                     }
                 }

@@ -5,7 +5,7 @@
   const e=value=>esc(String(value??''));
   const text=(zh,en)=>tr(zh,en);
   const num=n=>Number(n||0).toLocaleString();
-  const region=ed=>ed==='cn'?text('国内版','China'):text('国际版','International');
+  const region=ed=>ed==='both'?text('国内 + 国际','China + International'):ed==='cn'?text('国内版','China'):text('国际版','International');
   const duration=n=>n==null?'—':n<1000?`${n} ms`:`${(n/1000).toFixed(2)} s`;
   const publicId=m=>m.publicId||m.name||m.id;
   const label=p=>({'anthropic-messages':'Messages','openai-responses':'Responses','chat-completions':'Chat Completions'}[p]||p);
@@ -21,11 +21,11 @@
   function empty(title,description,action,button){return `<div class="gateway-empty"><strong>${e(title)}</strong>${e(description)}${action?`<br><button class="primary" data-gateway-action="${action}">${e(button)}</button>`:''}</div>`;}
   function table(logs){
     if(!logs.length)return empty(text('还没有请求记录','No requests yet'),text('启动服务并连接客户端后，每次调用都会出现在这里。','Start the service and connect a client to see requests here.'));
-    return `<div class="gateway-table-scroll"><table class="gateway-table"><thead><tr><th>${text('时间 / 模型','Time / model')}</th><th>${text('协议','Protocol')}</th><th>${text('账号','Account')}</th><th>${text('结果','Result')}</th><th>${text('用量','Tokens')}</th><th>${text('耗时','Duration')}</th></tr></thead><tbody>${logs.map(log=>`<tr data-request-id="${e(log.id)}" tabindex="0" role="button"><td>${e(log.model)}<small>${e(time(log.time))}</small></td><td>${e(label(log.protocol))}</td><td>${e(log.account||text('未分配账号','Unassigned'))}<small>${e(region(log.edition))}</small></td><td><span class="pill ${log.status==='completed'?'on':'off'}">${e(status(log.status))}</span></td><td class="num">${log.usage&&typeof log.usage.total_tokens==='number'?num(log.usage.total_tokens):'—'}</td><td class="num">${duration(log.durationMs)}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="gateway-table-scroll"><table class="gateway-table"><thead><tr><th>${text('时间 / 模型','Time / model')}</th><th>${text('协议','Protocol')}</th><th>${text('账号','Account')}</th><th>${text('结果','Result')}</th><th>${text('用量','Tokens')}</th><th>${text('耗时','Duration')}</th></tr></thead><tbody>${logs.map(log=>`<tr data-request-id="${e(log.id)}" tabindex="0" role="button"><td>${e(log.model)}<small>${e(log.modelName||log.realModel||'—')} · ${e(log.realModel||'—')}</small><small>${e(time(log.time))}</small></td><td>${e(label(log.protocol))}</td><td>${e(log.account||text('未分配账号','Unassigned'))}<small>${e(region(log.edition))}</small></td><td><span class="pill ${log.status==='completed'?'on':'off'}">${e(status(log.status))}</span></td><td class="num">${log.usage&&typeof log.usage.total_tokens==='number'?num(log.usage.total_tokens):'—'}</td><td class="num">${duration(log.durationMs)}</td></tr>`).join('')}</tbody></table></div>`;
   }
   function renderOverview(){
     const g=snapshot,c=g.config,logs=g.logs||[],success=logs.filter(l=>l.status==='completed');
-    const accounts=(STATE?.accounts||[]).filter(a=>a.edition===c.edition&&a.hasToken&&!c.disabledAccounts.includes(a.id)&&(!a.expiresAt||new Date(a.expiresAt)>new Date()));
+    const accounts=(STATE?.accounts||[]).filter(a=>(c.edition==='both'||a.edition===c.edition)&&a.hasToken&&!c.disabledAccounts.includes(a.id)&&(!a.expiresAt||new Date(a.expiresAt)>new Date()));
     $('gatewayHeroEndpoint').textContent=`http://127.0.0.1:${c.port}/v1`;
     $('gatewayHeroStatus').textContent=g.running?text('本地网关正在运行','LOCAL GATEWAY RUNNING'):text('本地网关待启动','LOCAL GATEWAY STOPPED');
     const tokens=logs.reduce((s,l)=>s+(Number(l.usage?.total_tokens)||0),0);
@@ -37,26 +37,28 @@
   }
   function renderModels(){
     const query=$('gatewayModelSearch').value.toLowerCase(),g=snapshot;
-    const models=g.models.filter(m=>`${m.id} ${m.name}`.toLowerCase().includes(query));
+    const models=g.models.filter(m=>`${m.id} ${m.name} ${publicId(m)} ${(m.allTargets||[]).map(t=>t.id+' '+t.name).join(' ')}`.toLowerCase().includes(query));
     $('gatewayModelRegion').textContent=region(g.config.edition);
     $('gatewayModelUpdated').textContent=g.modelUpdated?`${text('更新于','Updated')} ${time(g.modelUpdated)}`:text('尚未同步','Not synced yet');
     if(!models.length){$('gatewayModels').innerHTML=empty(g.models.length?text('没有匹配模型','No matching models'):text('先同步你的模型目录','Sync your model catalog'),text('从所选地区账号获取模型，不会自动发起聊天请求。','Loads models for the selected account region without generating a response.'),'sync-models',text('同步模型目录','Sync catalog'));return;}
     $('gatewayModels').innerHTML=models.map(m=>{
-      const verified=g.logs.some(l=>(l.model===m.id||l.model===publicId(m))&&l.edition===g.config.edition&&l.status==='completed');
+      const verified=g.logs.some(l=>(l.model===publicId(m)||(m.allTargets||[]).some(t=>t.id===l.realModel&&t.edition===l.edition))&&l.status==='completed');
       const tags=[...(m.reasoning?.supportedEfforts||[]).map(x=>x==='none'?text('可关闭思考','Thinking off'):`${text('思考','Effort')} ${x}`),m.supportsTools===true?text('工具调用','Tools'):null,m.supportsImages===true?text('图片','Images'):null,m.contextWindow?`${num(m.contextWindow)} context`:null].filter(Boolean);
-      return `<article class="gateway-model"><div class="gateway-model-top"><span class="gateway-model-icon">◇</span><span class="pill ${verified?'on':''}">${verified?text('已调用','Called successfully'):text('目录可见','In catalog')}</span></div><h3>${e(m.name)}</h3><code>${e(publicId(m))}</code><div class="gateway-model-tags">${(tags.length?tags:[text('能力以实际调用为准','Capabilities depend on model')]).map(t=>`<span class="pill">${e(t)}</span>`).join('')}</div><div class="gateway-model-footer"><span class="gateway-subtle">${e(region(g.config.edition))} · Qoder</span><button data-model-copy="${e(publicId(m))}">${text('复制 ID','Copy ID')}</button></div></article>`;
+      return `<article class="gateway-model"><div class="gateway-model-top"><span class="gateway-model-icon">◇</span><span class="pill ${verified?'on':''}">${verified?text('已调用','Called successfully'):text('目录可见','In catalog')}</span></div><h3>${e(publicId(m))}</h3><code>${e(m.name||m.routeId)}</code><div class="gateway-model-upstreams">${(m.allTargets||m.targets||[]).map(t=>`<div><span>${e(region(t.edition))}</span><b>${e(t.name||t.id)}</b><code>${e(t.id)}</code></div>`).join('')||text('映射模型当前不在目录，请同步或重新设置','Mapped model unavailable; sync or edit')}</div><div class="gateway-model-tags">${(tags.length?tags:[text('能力以实际调用为准','Capabilities depend on model')]).map(t=>`<span class="pill">${e(t)}</span>`).join('')}</div><div class="gateway-model-footer"><span class="gateway-subtle">${m.available===false?text('当前范围不可用','Unavailable in scope'):e((m.editions||[g.config.edition]).map(region).join(' / '))}</span><button data-model-edit="${e(m.routeId||m.id)}">${text('别名 / 路由','Alias / routing')}</button><button data-model-copy="${e(publicId(m))}">${text('复制 ID','Copy ID')}</button></div></article>`;
     }).join('');
   }
   function renderRequests(){
     const q=$('gatewayRequestSearch').value.toLowerCase(),filter=$('gatewayRequestFilter').value;
-    const logs=snapshot.logs.filter(l=>(filter==='all'||(filter==='failed'?l.status!=='completed':l.status===filter))&&`${l.model} ${l.account} ${l.protocol}`.toLowerCase().includes(q));
-    $('gatewayRequests').innerHTML=table(logs);
+    const logs=snapshot.logs.filter(l=>(filter==='all'||(filter==='failed'?l.status!=='completed':l.status===filter))&&`${l.model} ${l.realModel||''} ${l.modelName||''} ${l.account} ${l.protocol}`.toLowerCase().includes(q));
+    $('gatewayRequestCount').textContent=text(`显示 ${logs.length} / ${snapshot.logs.length} 条`,`Showing ${logs.length} / ${snapshot.logs.length}`);
+    $('gatewayRequests').innerHTML=!logs.length && (q||filter!=='all') ? empty(text('没有匹配的请求','No matching requests'),text('试试其他关键词，或将结果筛选切回「全部结果」。','Try another keyword or select All results.')) : table(logs);
   }
+  const shellQuote=value=>"'"+String(value).replaceAll("'", "'\"'\"'")+"'";
   function configCode(){
-    const port=snapshot.config.port,model=(snapshot.models[0]?publicId(snapshot.models[0]):'<Qoder model ID>');
-    if(client==='claude')return `# ${text('在终端配置你的本地密钥','Set your local key in the terminal')}\nexport ANTHROPIC_BASE_URL="http://127.0.0.1:${port}"\nexport ANTHROPIC_AUTH_TOKEN="<LOCAL_API_KEY>"\nexport ANTHROPIC_MODEL="${model}"\n\nclaude`;
-    if(client==='codex')return `# ~/.codex/config.toml\nmodel = "${model}"\nmodel_provider = "qoder_gateway"\n\n[model_providers.qoder_gateway]\nname = "Qoder Gateway"\nbase_url = "http://127.0.0.1:${port}/v1"\nwire_api = "responses"\nenv_key = "QODER_GATEWAY_API_KEY"\n\n# ${text('终端中设置，勿粘贴到 TOML 文件','Set in your terminal, not in the TOML file')}:\n# export QODER_GATEWAY_API_KEY="<LOCAL_API_KEY>"`;
-    return `Base URL: http://127.0.0.1:${port}/v1\nAPI Key: <LOCAL_API_KEY>\nModel: ${model}\n\ncurl http://127.0.0.1:${port}/v1/chat/completions \\\n  -H "Authorization: Bearer $QODER_GATEWAY_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify({model,messages:[{role:'user',content:'Hello'}],stream:true})}'`;
+    const port=snapshot.config.port,first=snapshot.models.find(m=>m.available!==false),model=first?publicId(first):'<Qoder model alias>';
+    if(client==='claude')return `# ${text('在终端配置你的本地密钥','Set your local key in the terminal')}\nexport ANTHROPIC_BASE_URL="http://127.0.0.1:${port}"\nexport ANTHROPIC_AUTH_TOKEN="<LOCAL_API_KEY>"\nexport ANTHROPIC_MODEL=${shellQuote(model)}\n\nclaude`;
+    if(client==='codex')return `# ~/.codex/config.toml\nmodel = ${JSON.stringify(model)}\nmodel_provider = "qoder_gateway"\n\n[model_providers.qoder_gateway]\nname = "Qoder Gateway"\nbase_url = "http://127.0.0.1:${port}/v1"\nwire_api = "responses"\nenv_key = "QODER_GATEWAY_API_KEY"\n\n# ${text('终端中设置，勿粘贴到 TOML 文件','Set in your terminal, not in the TOML file')}:\n# export QODER_GATEWAY_API_KEY="<LOCAL_API_KEY>"`;
+    return `Base URL: http://127.0.0.1:${port}/v1\nAPI Key: <LOCAL_API_KEY>\nModel: ${model}\n\ncurl http://127.0.0.1:${port}/v1/chat/completions \\\n  -H "Authorization: Bearer $QODER_GATEWAY_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d ${shellQuote(JSON.stringify({model,messages:[{role:'user',content:'Hello'}],stream:true}))}`;
   }
   function renderAccess(){
     const g=snapshot,c=g.config;
@@ -99,12 +101,20 @@
   function openRequest(id){
     selected=snapshot.logs.find(l=>l.id===id);if(!selected)return;
     $('gatewayDrawerTitle').textContent=text('请求详情','Request details');
-    const fields=[[text('模型','Model'),selected.model],[text('协议','Protocol'),label(selected.protocol)],[text('账号','Account'),selected.account],[text('地区','Region'),region(selected.edition)],[text('时间','Time'),time(selected.time)],[text('结果','Result'),status(selected.status)],['HTTP',selected.httpStatus],[text('首字节','First byte'),duration(selected.firstByteMs)],[text('总耗时','Duration'),duration(selected.durationMs)],['Request ID',selected.requestId],[text('上游业务码','Upstream code'),selected.upstreamCode||'—']];
+    const fields=[[text('模型别名','Model alias'),selected.model],[text('真实模型名称','Upstream model name'),selected.modelName||'—'],[text('真实模型 ID','Upstream model ID'),selected.realModel||'—'],[text('客户端传入模型','Requested model'),selected.requestedModel||selected.model],[text('协议','Protocol'),label(selected.protocol)],[text('账号','Account'),selected.account],[text('地区','Region'),region(selected.edition)],[text('时间','Time'),time(selected.time)],[text('结果','Result'),status(selected.status)],['HTTP',selected.httpStatus],[text('首字节','First byte'),duration(selected.firstByteMs)],[text('总耗时','Duration'),duration(selected.durationMs)],['Request ID',selected.requestId],[text('上游业务码','Upstream code'),selected.upstreamCode||'—']];
     $('gatewayDrawerBody').innerHTML=fields.map(([k,v])=>`<div class="gateway-info-row"><span>${e(k)}</span><b>${e(v)}</b></div>`).join('')+(selected.message?`<div class="gateway-notice" style="margin-top:18px">${e(selected.message)}</div>`:'')+`<pre class="gateway-code">${e(JSON.stringify(selected.usage||{},null,2))}</pre><p class="gateway-subtle">${text('仅记录数值与运行元数据，不保存对话正文或工具参数。','Only numeric usage and runtime metadata are recorded.')}</p>`;
     $('gatewayDrawer').hidden=false;$('gatewayDrawer').querySelector('button').focus();
   }
+  function editModel(routeId){
+    const row=snapshot.models.find(m=>(m.routeId||m.id)===routeId);if(!row)return;
+    const settings=snapshot.config.modelRoutes?.[routeId];
+    const selected=edition=>settings?.[edition]??(settings?null:(row.allTargets||row.targets||[]).find(t=>t.edition===edition)?.id);
+    const chooser=edition=>`<label>${e(region(edition))}<select id="route-${edition}"><option value="">${text('不使用此地区','Do not use this region')}</option>${(snapshot.catalogs?.[edition]||[]).map(m=>`<option value="${e(m.id)}" ${selected(edition)===m.id?'selected':''}>${e(m.name||m.id)} · ${e(m.id)}</option>`).join('')}</select></label>`;
+    showModal({title:text('模型别名与路由','Model alias and routing'),bodyHTML:`<div class="model-route-editor"><label>${text('对外模型别名','Public model alias')}<input id="route-alias" maxlength="128" value="${e(publicId(row))}" autocomplete="off"></label><p>${text('客户端使用此别名；每次请求只选择一个符合映射的可用账号。','Clients use this alias. Each request selects one eligible mapped account.')}</p>${chooser('cn')}${chooser('intl')}<p>${text('两个地区都选择模型时，按账号池调度策略跨地区调度；仅选择一个地区时，只使用该地区账号。映射会随配置保存。','Select both regions for cross-region scheduling, or one for a regional model. Mappings persist with configuration.')}</p></div>`,buttons:[{label:text('取消','Cancel'),value:null},{label:text('保存','Save'),primary:true,onClick:async button=>{button.disabled=true;try{await invoke('gateway_save_route',{routeId,alias:$('route-alias').value,cn:$('route-cn').value||null,intl:$('route-intl').value||null});closeModal();await refresh();toast(text('别名与地区映射已保存','Alias and mappings saved'),true);}catch(error){toast(String(error),false);}finally{button.disabled=false;}}}]});
+  }
   document.addEventListener('click',async event=>{
     const request=event.target.closest('[data-request-id]');if(request){openRequest(request.dataset.requestId);return;}
+    const edit=event.target.closest('[data-model-edit]');if(edit){editModel(edit.dataset.modelEdit);return;}
     const model=event.target.closest('[data-model-copy]');if(model){await copy(model.dataset.modelCopy);return;}
     const account=event.target.closest('[data-gateway-account]');
     if(account&&snapshot){await action(async()=>{const config=structuredClone(snapshot.config),id=account.dataset.gatewayAccount;config.disabledAccounts=config.disabledAccounts.includes(id)?config.disabledAccounts.filter(x=>x!==id):[...config.disabledAccounts,id];await invoke('gateway_save',{config});},account);return;}
@@ -125,7 +135,7 @@
       if(task==='copy-config')return await copy(configCode());
       if(task==='copy-diagnostic')return await copy(JSON.stringify(selected,null,2));
       if(task==='toggle')return await action(async()=>{await invoke(snapshot.running?'gateway_stop':'gateway_start');toast(snapshot.running?text('正在停止，活动请求完成后关闭','Stopping after active requests finish'):text('本地服务已启动','Local service started'),true);},button);
-      if(task==='sync-models')return await action(async()=>{button.textContent=text('正在同步…','Syncing…');const r=await invoke('gateway_models');toast(`${text('已同步','Synced')} ${r.count} ${text('个模型','models')}`,true);},button).finally(()=>{button.textContent=text('同步模型目录','Sync catalog');});
+      if(task==='sync-models')return await action(async()=>{button.textContent=text('正在同步…','Syncing…');const r=await invoke('gateway_models');toast(`${text('已同步','Synced')} ${r.count} ${text('条地区模型','regional models')}${r.warnings?.length?' · '+r.warnings.join('；'):''}`,true);},button).finally(()=>{button.textContent=text('同步模型目录','Sync catalog');});
       if(task==='clear-logs')return await action(()=>invoke('gateway_clear_logs'),button);
     }catch(error){toast(String(error),false);}
   });

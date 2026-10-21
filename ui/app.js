@@ -1559,7 +1559,7 @@ function renderTokenReqs(d) {
   document.getElementById('tokenReqBody').innerHTML = rows.length ? rows.map(r => `
     <tr>
       <td>${esc(r.ts)}</td>
-      <td>${esc(r.model)}</td>
+      <td>${esc(r.model)}${r.realModel?`<small class="usage-real-model">${esc(r.modelName||'')} · ${esc(r.realModel)}</small>`:''}</td>
       <td class="ell" title="${esc(r.cwd)}">${esc((r.cwd || '').split('/').filter(Boolean).slice(-1)[0] || '—')}</td>
       <td class="ell" title="${esc(r.title)}">${esc(r.title || '—')}</td>
       <td class="num">${r.inTokens == null ? '—' : fmtTok(r.inTokens)}</td>

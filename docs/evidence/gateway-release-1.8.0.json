@@ -1,0 +1,28 @@
+{
+  "version": "1.8.0",
+  "artifact": "Qoder-Switch_1.8.0_macos_arm64.dmg",
+  "bytes": 4247952,
+  "sha256": "0a54198336e96a3dd7f4387b986f01582b5b2ac3e2fcd13e5a25785a97c9cc70",
+  "rustTests": 40,
+  "javascriptSyntax": "passed",
+  "signature": "ad-hoc verified",
+  "notarized": false,
+  "changes": [
+    "merged catalog with explicit persisted regional mappings",
+    "model-scoped fair round robin across eligible CN and international accounts",
+    "public model aliases and regional upstream identities in logs/usage",
+    "model alias and upstream mapping editor"
+  ],
+  "verification": [
+    "mock HTTP shared model round robin and unique-model regional isolation",
+    "pinned account cannot escape model scope",
+    "disabled/concurrency/cooldown handling",
+    "Messages/Responses/Chat alias JSON/SSE",
+    "model route serialization and alias conflicts",
+    "common capability intersection",
+    "offline UI alias save, region exclusion and request identity fields"
+  ],
+  "liveModelRequests": 0,
+  "upgrade": "Choose Both regions in account scope, save, and sync both catalogs. Existing scope preserved.",
+  "screenshot": "model-routing-1.8.0-preview.png"
+}

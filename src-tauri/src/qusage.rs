@@ -14,7 +14,7 @@ fn path() -> std::path::PathBuf {
 pub fn record(log: &crate::qproxy::RequestLog) -> Result<(), String> {
     append(
         &path(),
-        &json!({"id":log.id,"time":log.time,"edition":log.edition,"model":log.model,"account":log.account,"protocol":log.protocol,"status":log.status,"durationMs":log.duration_ms,
+        &json!({"id":log.id,"time":log.time,"edition":log.edition,"model":log.model,"realModel":log.real_model,"modelName":log.model_name,"requestedModel":log.requested_model,"account":log.account,"protocol":log.protocol,"status":log.status,"durationMs":log.duration_ms,
         "in":log.usage["prompt_tokens"].as_u64(),"out":log.usage["completion_tokens"].as_u64(),"cached":log.usage["prompt_tokens_details"]["cached_tokens"].as_u64()}),
     )
 }
@@ -101,7 +101,7 @@ fn read_stats(path: &Path, edition: &str, offset: Option<i64>) -> Result<Value, 
                 let prev = g["daily"][&date].clone();
                 g["daily"][&date] = json!({"tokens":prev["tokens"].as_u64().unwrap_or(0)+tokens,"requests":prev["requests"].as_u64().unwrap_or(0)+1});
             }
-            requests.push(json!({"ts":ts,"model":row["model"],"cwd":row["account"],"title":format!("{} · {}",row["protocol"].as_str().unwrap_or(""),row["status"].as_str().unwrap_or("")),"durationMs":row["durationMs"],"inTokens":row["in"],"outTokens":row["out"],"cachedTokens":row["cached"]}));
+            requests.push(json!({"ts":ts,"model":row["model"],"realModel":row["realModel"],"modelName":row["modelName"],"cwd":row["account"],"title":format!("{} · {}",row["protocol"].as_str().unwrap_or(""),row["status"].as_str().unwrap_or("")),"durationMs":row["durationMs"],"inTokens":row["in"],"outTokens":row["out"],"cachedTokens":row["cached"]}));
         }
     }
     requests.sort_by(|a, b| b["ts"].as_str().cmp(&a["ts"].as_str()));
