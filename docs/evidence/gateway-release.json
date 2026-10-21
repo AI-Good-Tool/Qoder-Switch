@@ -1,0 +1,39 @@
+{
+  "version": "1.7.0",
+  "architecture": "arm64",
+  "artifact": "Qoder-Switch_1.7.0_macos_arm64.dmg",
+  "bytes": 4192445,
+  "sha256": "85f09f689a3053cff221fd446174c9d8540fa179e09b50501bf23dfcc4fad500",
+  "rustTestsPassed": 30,
+  "javascriptSyntaxChecks": true,
+  "signature": "ad-hoc; codesign --verify --deep --strict passed",
+  "notarized": false,
+  "secretScan": "passed: no existing account tokens, refresh tokens, auth blobs or local API key in executable",
+  "nativeUi": "packaged app launched; gateway start and stop verified",
+  "catalogs": {
+    "cn": 11,
+    "intl": 15
+  },
+  "liveSmoke": "gateway-smoke.json",
+  "sources": {
+    "ui/index.html": "da1e64b0dbb3d13abef65b317037f4982140567ddae8891c52885bad3e2af72d",
+    "ui/gateway.js": "61d423a64eae70690bf24494c0791bf87c84e78e1096e295a33099b008a02d14",
+    "ui/gateway.css": "02f41bf7422ffb351e68474c920cbff75d3617f5f0f3e7e8dc948b35e99963f3",
+    "ui/gateway-shell.js": "a0e6bcb5bd02a83735007b4a05dc69a7eb32be31fc332d6cf865edec29bbfb56",
+    "ui/app.js": "39e977ed0c14813d7353c57f8763b8d404f730a4d183456a9d670b28d143ba5e",
+    "src-tauri/src/qsession.rs": "fe3feff3adf1a71b25cff86eb33364b7807ce9d3ed4cccbee55af2f59da96ed1",
+    "src-tauri/src/qproxy.rs": "397f507b56d728f652f8ca0bc55663a38e5bc062de54ca1a15212e6d4a11beef",
+    "src-tauri/src/responses.rs": "2c729b570967ced2dcb25650b98fd65191b3ed962cac748c948298712d23913b",
+    "src-tauri/src/response_tools.rs": "f75681c9bd6a61b0b1106f00f3409e3702ae7c709bca533d25f4959b6d50a050",
+    "src-tauri/src/qcore.rs": "c64603d8e8ae6843ba4908a7060fc4570090dbedd83a38c75e5933c6bdc36f2c",
+    "src-tauri/src/main.rs": "fc7a60808086d70649cc89bed80ce57d936a0ef173f87c77f79d5b2867bf741b",
+    "src-tauri/src/anthropic.rs": "1275d96efda8e8200d607828b95065cdcf32a459ce3b47543226f44ae92f3e3d",
+    "src-tauri/src/qstats.rs": "1efb90bd51683b7147b2b9a6695db7b366e60f30370a7887af0cd0d77a788e07",
+    "src-tauri/src/custom_tools.rs": "0ba3384a508858ad0e31098367bb1f1c72a55fdf8599ad2522a4428cefb3a448",
+    "scripts/qoder-runtime.mjs": "5c1eea19f2bf9a48a24c5445abcac1efbf94489890edde9983bdbc21d2907c0a",
+    "src-tauri/Cargo.toml": "71996168fc05eab07f73f2f93281f94f84ed5a46638efc02cfc8fac3c06e6a2f",
+    "src-tauri/Cargo.lock": "b128257cb7a95f39d3ca36c322bcb36d1c63fbb465bdb55593acbf5c2bedbc78",
+    "src-tauri/tauri.conf.json": "a7f376707c9ad3c4ab29700a42972c9e5e9ede8dec4c748f77d303d3bd4e66a5"
+  },
+  "dmgVerify": "passed: checksum, read-only mount, mounted app signature and executable hash"
+}

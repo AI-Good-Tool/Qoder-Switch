@@ -1,0 +1,20 @@
+{
+  "version": "1.7.3",
+  "artifact": "Qoder-Switch_1.7.3_macos_arm64.dmg",
+  "bytes": 4218795,
+  "sha256": "b01872c0e1599fb8b8687f13ed3dff287824a2f8be99cf24283016f9c627fbb7",
+  "signature": "ad-hoc verified",
+  "notarized": false,
+  "javascriptSyntax": "passed",
+  "uiChecks": [
+    "search by note",
+    "region filtering",
+    "compact layout",
+    "more menu",
+    "quota refresh from offline fixture",
+    "light and dark themes",
+    "current account and concurrency display"
+  ],
+  "screenshot": "account-pool-1.7.3-preview.png",
+  "quotaSource": "existing credits command; no invented per-pack history"
+}

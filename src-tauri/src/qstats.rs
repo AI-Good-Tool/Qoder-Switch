@@ -132,7 +132,10 @@ pub fn token_stats(edition_key: &str, tz_off: Option<i64>) -> Result<Value, Stri
         if role != "assistant" {
             continue;
         }
-        let inp = pending_input.get(&(sid.clone(), turn)).copied().unwrap_or(0);
+        let inp = pending_input
+            .get(&(sid.clone(), turn))
+            .copied()
+            .unwrap_or(0);
         requests.push(Req {
             ts: r["ts"].as_str().unwrap_or("").to_string(),
             d: d.clone(),
@@ -193,7 +196,11 @@ pub fn token_stats(edition_key: &str, tz_off: Option<i64>) -> Result<Value, Stri
     // ── 按项目分布（按 token 量，含按日细分供前端按区间过滤）──
     let mut proj: BTreeMap<String, (i64, i64, BTreeMap<String, (i64, i64)>)> = BTreeMap::new();
     for q in &requests {
-        let name = if q.cwd.is_empty() { "未知项目".to_string() } else { q.cwd.clone() };
+        let name = if q.cwd.is_empty() {
+            "未知项目".to_string()
+        } else {
+            q.cwd.clone()
+        };
         let e = proj.entry(name).or_insert((0, 0, BTreeMap::new()));
         e.0 += q.inp + q.out;
         e.1 += 1;
@@ -202,9 +209,11 @@ pub fn token_stats(edition_key: &str, tz_off: Option<i64>) -> Result<Value, Stri
         de.1 += 1;
     }
     let daily_map = |m: &BTreeMap<String, (i64, i64)>| -> Value {
-        Value::Object(m.iter().map(|(d, (t, r))| {
-            (d.clone(), json!({"tokens": t, "requests": r}))
-        }).collect())
+        Value::Object(
+            m.iter()
+                .map(|(d, (t, r))| (d.clone(), json!({"tokens": t, "requests": r})))
+                .collect(),
+        )
     };
     let mut projects: Vec<Value> = proj
         .into_iter()
@@ -212,13 +221,20 @@ pub fn token_stats(edition_key: &str, tz_off: Option<i64>) -> Result<Value, Stri
             json!({"name": name, "tokens": tokens, "requests": requests, "daily": daily_map(&dm)})
         })
         .collect();
-    projects.sort_by(|a, b| b["tokens"].as_i64().unwrap_or(0).cmp(&a["tokens"].as_i64().unwrap_or(0)));
+    projects.sort_by(|a, b| {
+        b["tokens"]
+            .as_i64()
+            .unwrap_or(0)
+            .cmp(&a["tokens"].as_i64().unwrap_or(0))
+    });
     projects.truncate(12);
 
     // ── 按模型分布（按 token 量，含按日细分）──
     let mut mdl: BTreeMap<String, (i64, i64, BTreeMap<String, (i64, i64)>)> = BTreeMap::new();
     for q in &requests {
-        let e = mdl.entry(q.model.clone()).or_insert((0, 0, BTreeMap::new()));
+        let e = mdl
+            .entry(q.model.clone())
+            .or_insert((0, 0, BTreeMap::new()));
         e.0 += q.inp + q.out;
         e.1 += 1;
         let de = e.2.entry(q.d.clone()).or_insert((0, 0));
@@ -231,7 +247,12 @@ pub fn token_stats(edition_key: &str, tz_off: Option<i64>) -> Result<Value, Stri
             json!({"name": name, "tokens": tokens, "requests": requests, "daily": daily_map(&dm)})
         })
         .collect();
-    models.sort_by(|a, b| b["tokens"].as_i64().unwrap_or(0).cmp(&a["tokens"].as_i64().unwrap_or(0)));
+    models.sort_by(|a, b| {
+        b["tokens"]
+            .as_i64()
+            .unwrap_or(0)
+            .cmp(&a["tokens"].as_i64().unwrap_or(0))
+    });
     models.truncate(12);
 
     // ── 请求明细（最近 300 条）──

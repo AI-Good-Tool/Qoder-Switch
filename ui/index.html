@@ -330,6 +330,7 @@ table.tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
 @keyframes skel { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
 .skel-row { height: 13px; margin: 9px 0; }
 </style>
+<link rel="stylesheet" href="gateway.css">
 </head>
 <body>
   <nav id="sidebar">
@@ -429,9 +430,9 @@ table.tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
     <!-- Token 统计页 -->
     <section class="page" id="page-tokens">
       <div class="page-head">
-        <div><h1 data-zh="Token 统计" data-en="Token Stats">Token 统计</h1><div class="ph-sub" data-zh="基于本地会话内容估算 · 官方不公开逐请求真实 token 数" data-en="Estimated from local session content · real per-request token counts are not public">基于本地会话内容估算 · 官方不公开逐请求真实 token 数</div></div>
+        <div><h1 data-zh="Token 统计" data-en="Token Stats">Token 统计</h1><div class="ph-sub" id="tokenSourceDesc">反代实际用量 / 本地会话估算</div></div>
         <div class="ph-ops">
-          <div class="seg" id="tokenSrcTabs"></div>
+          <div class="seg" id="tokenDataTabs"></div><div class="seg" id="tokenSrcTabs"></div>
           <div class="seg" id="tokenFmtSeg"></div>
           <button class="primary" data-zh="刷新" data-en="Refresh" onclick="loadTokenStats(true)">刷新</button>
         </div>
@@ -474,7 +475,7 @@ table.tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
     <!-- 设置页 -->
     <section class="page" id="page-settings">
       <h1 class="pt" data-zh="设置" data-en="Settings">设置</h1>
-      <p class="pd" data-zh="自动领取与数据管理" data-en="Auto-claim and data management">自动领取与数据管理</p>
+      <p class="pd" data-zh="外观、语言与数据管理" data-en="Appearance, language and data management">外观、语言与数据管理</p>
       <div class="section">
         <div class="sec-head"><h2 data-zh="外观" data-en="Appearance">外观</h2></div>
         <div class="row">
@@ -540,6 +541,8 @@ table.tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
   </div></div>
 
   <div id="toast"></div>
+  <script src="gateway-shell.js"></script>
   <script src="app.js"></script>
+  <script src="gateway.js"></script>
 </body>
 </html>

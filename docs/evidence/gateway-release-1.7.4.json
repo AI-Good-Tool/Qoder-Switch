@@ -1,0 +1,25 @@
+{
+  "version": "1.7.4",
+  "artifact": "Qoder-Switch_1.7.4_macos_arm64.dmg",
+  "bytes": 4224647,
+  "sha256": "8cfbec73401f00b1d734cd3302ed397d26b904c50a26e792d108f5ae275eabaa",
+  "rustTests": 34,
+  "javascriptSyntax": "passed",
+  "signature": "ad-hoc verified",
+  "notarized": false,
+  "changes": [
+    "random API Key draft",
+    "manual API Key edit",
+    "atomic save with immediate authentication rotation"
+  ],
+  "verification": [
+    "offline HTTP new key accepted via Bearer and x-api-key",
+    "old key rejected",
+    "generated keys differ",
+    "invalid values rejected",
+    "disk value matches saved key",
+    "offline UI generate/edit/cancel/validation/save"
+  ],
+  "screenshot": "api-key-1.7.4-preview.png",
+  "userActualKeyChanged": false
+}

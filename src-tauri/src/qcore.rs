@@ -25,8 +25,8 @@ pub struct Edition {
     pub home_dir: &'static str, // 相对 ~
     pub keychain_service: &'static str,
     pub api_base: &'static str,
-    pub auth_base: &'static str,     // 浏览器登录站点
-    pub client_id: &'static str,     // 官方 device flow clientId（两版相同）
+    pub auth_base: &'static str, // 浏览器登录站点
+    pub client_id: &'static str, // 官方 device flow clientId（两版相同）
     pub biz_variant: &'static str,
 }
 
@@ -140,7 +140,10 @@ fn keychain_password(service: &str) -> Result<String, String> {
         }
     }
     let _ = child.kill();
-    Err(format!("钥匙串读取超时（{}）：如弹出授权框请点「始终允许」", service))
+    Err(format!(
+        "钥匙串读取超时（{}）：如弹出授权框请点「始终允许」",
+        service
+    ))
 }
 
 fn pbkdf2_hmac_sha1(password: &[u8], salt: &[u8], iterations: u32, out: &mut [u8]) {
@@ -257,13 +260,15 @@ fn run_runtime_info(ed: &Edition) -> Value {
     if !Path::new(&exe).exists() {
         return json!({});
     }
-    let out = Command::new(&exe)
-        .arg("--account-stdin")
-        .output();
+    let out = Command::new(&exe).arg("--account-stdin").output();
     match out {
         Ok(o) => {
             let text = String::from_utf8_lossy(&o.stdout);
-            let last = text.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("");
+            let last = text
+                .lines()
+                .rev()
+                .find(|l| !l.trim().is_empty())
+                .unwrap_or("");
             serde_json::from_str(last).unwrap_or(json!({}))
         }
         Err(_) => json!({}),
@@ -276,12 +281,20 @@ pub fn device_headers(ed: &Edition) -> Vec<(String, String)> {
     let cache = home().join(ed.home_dir).join("umid-cache.json");
     if let Ok(text) = fs::read_to_string(&cache) {
         if let Ok(v) = serde_json::from_str::<Value>(&text) {
-            if v.pointer("/info/machineToken").and_then(|x| x.as_str()).is_some() {
+            if v.pointer("/info/machineToken")
+                .and_then(|x| x.as_str())
+                .is_some()
+            {
                 umid = v.get("info").cloned().unwrap_or(json!({}));
             }
         }
     }
-    if umid.get("machineToken").and_then(|x| x.as_str()).unwrap_or("").is_empty() {
+    if umid
+        .get("machineToken")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .is_empty()
+    {
         umid = run_runtime_info(ed);
     }
 
@@ -303,14 +316,29 @@ pub fn device_headers(ed: &Edition) -> Vec<(String, String)> {
     let mf = format!("{}/Contents/Resources/build-manifest.json", ed.app_path);
     if let Ok(text) = fs::read_to_string(&mf) {
         if let Ok(v) = serde_json::from_str::<Value>(&text) {
-            version = v.get("productVersion").and_then(|x| x.as_str()).unwrap_or("").to_string();
+            version = v
+                .get("productVersion")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
         }
     }
 
-    let arch = if cfg!(target_arch = "aarch64") { "aarch64" } else { "x86_64" };
-    let hostname = hostname::get().map(|h| h.to_string_lossy().to_string()).unwrap_or_default();
+    let arch = if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "x86_64"
+    };
+    let hostname = hostname::get()
+        .map(|h| h.to_string_lossy().to_string())
+        .unwrap_or_default();
 
-    let g = |k: &str| umid.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
+    let g = |k: &str| {
+        umid.get(k)
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string()
+    };
     let mut h = vec![
         ("Cosy-ClientType".to_string(), "10".to_string()),
         ("Cosy-MachineOS".to_string(), format!("{}_darwin", arch)),
@@ -337,9 +365,19 @@ pub fn device_headers(ed: &Edition) -> Vec<(String, String)> {
 
 // ───────────────────────── HTTP ─────────────────────────
 
-pub fn api_call(ed: &Edition, path: &str, method: &str, token: &str, body: Option<Value>) -> (u16, Value) {
+pub fn api_call(
+    ed: &Edition,
+    path: &str,
+    method: &str,
+    token: &str,
+    body: Option<Value>,
+) -> (u16, Value) {
     let url = format!("{}{}", ed.api_base, path);
-    let mut req = if method == "POST" { ureq::post(&url) } else { ureq::get(&url) };
+    let mut req = if method == "POST" {
+        ureq::post(&url)
+    } else {
+        ureq::get(&url)
+    };
     req = req
         .set("Accept", "application/json")
         .set("User-Agent", "Qoder/switch")
@@ -419,14 +457,23 @@ pub fn save_accounts(accounts: &[Account]) -> Result<(), String> {
     fs::create_dir_all(switch_dir()).map_err(|e| e.to_string())?;
     let doc = json!({ "accounts": accounts });
     let tmp = accounts_file().with_extension("tmp");
-    fs::write(&tmp, serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    fs::write(
+        &tmp,
+        serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     fs::rename(&tmp, accounts_file()).map_err(|e| e.to_string())?;
     Ok(())
 }
 
-pub fn find_account<'a>(accounts: &'a mut [Account], edition_key: &str, uid: &str) -> Option<&'a mut Account> {
-    accounts.iter_mut().find(|a| a.edition == edition_key && a.uid == uid)
+pub fn find_account<'a>(
+    accounts: &'a mut [Account],
+    edition_key: &str,
+    uid: &str,
+) -> Option<&'a mut Account> {
+    accounts
+        .iter_mut()
+        .find(|a| a.edition == edition_key && a.uid == uid)
 }
 
 /// 采集某版本当前登录账号 → (account, is_new)
@@ -438,11 +485,17 @@ pub fn capture_current(edition_key: &str) -> Result<(Account, bool), String> {
         return Err(format!("{} 当前未登录", ed.label));
     }
     let user = sess.get("user").cloned().unwrap_or(json!({}));
-    let uid = user.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    let uid = user
+        .get("id")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
     let blob = B64.encode(fs::read(auth_dat_path(ed)).map_err(|e| e.to_string())?);
 
     let mut accounts = load_accounts();
-    let idx = accounts.iter().position(|a| a.edition == edition_key && a.uid == uid);
+    let idx = accounts
+        .iter()
+        .position(|a| a.edition == edition_key && a.uid == uid);
     let is_new = idx.is_none();
     if is_new {
         accounts.push(Account {
@@ -455,17 +508,44 @@ pub fn capture_current(edition_key: &str) -> Result<(Account, bool), String> {
         let i = idx.unwrap_or(accounts.len() - 1);
         &mut accounts[i]
     };
-    acc.name = user.get("name").and_then(|x| x.as_str())
+    acc.name = user
+        .get("name")
+        .and_then(|x| x.as_str())
         .or(user.get("email").and_then(|x| x.as_str()))
         .or(user.get("phone").and_then(|x| x.as_str()))
-        .unwrap_or(&uid[..uid.len().min(8)]).to_string();
-    acc.email = user.get("email").and_then(|x| x.as_str()).unwrap_or("").to_string();
-    acc.phone = user.get("phone").and_then(|x| x.as_str()).unwrap_or("").to_string();
-    acc.avatarUrl = user.get("avatarUrl").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        .unwrap_or(&uid[..uid.len().min(8)])
+        .to_string();
+    acc.email = user
+        .get("email")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    acc.phone = user
+        .get("phone")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    acc.avatarUrl = user
+        .get("avatarUrl")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
     acc.token = token.to_string();
-    acc.refreshToken = sess.get("refreshToken").and_then(|x| x.as_str()).unwrap_or("").to_string();
-    acc.expiresAt = sess.get("expiresAt").and_then(|x| x.as_str()).unwrap_or("").to_string();
-    acc.refreshTokenExpiresAt = sess.get("refreshTokenExpiresAt").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    acc.refreshToken = sess
+        .get("refreshToken")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    acc.expiresAt = sess
+        .get("expiresAt")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    acc.refreshTokenExpiresAt = sess
+        .get("refreshTokenExpiresAt")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
     acc.authBlob = blob;
     acc.savedAt = chrono::Utc::now().to_rfc3339();
     let result = acc.clone();
@@ -476,7 +556,11 @@ pub fn capture_current(edition_key: &str) -> Result<(Account, bool), String> {
 pub fn live_uid(edition_key: &str) -> String {
     edition(edition_key)
         .and_then(|ed| decrypt_auth_dat(ed))
-        .and_then(|s| s.pointer("/user/id").and_then(|x| x.as_str()).map(|s| s.to_string()))
+        .and_then(|s| {
+            s.pointer("/user/id")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string())
+        })
         .unwrap_or_default()
 }
 
@@ -485,7 +569,9 @@ pub fn live_uid(edition_key: &str) -> String {
 fn token_expiring(acc: &Account, hours: i64) -> bool {
     let exp = chrono::DateTime::parse_from_rfc3339(&acc.expiresAt);
     match exp {
-        Ok(t) => t.with_timezone(&chrono::Utc) < chrono::Utc::now() + chrono::Duration::hours(hours),
+        Ok(t) => {
+            t.with_timezone(&chrono::Utc) < chrono::Utc::now() + chrono::Duration::hours(hours)
+        }
         Err(_) => false,
     }
 }
@@ -510,7 +596,9 @@ pub fn refresh_account_token(acc: &mut Account) -> bool {
     }
     // 官方响应为 snake_case：{"device_token":"dt-..","refresh_token":"drt-..",
     // "expires_at":"..","refresh_token_expires_at":".."}，兼容驼峰变体
-    let tok = data.get("device_token").and_then(|x| x.as_str())
+    let tok = data
+        .get("device_token")
+        .and_then(|x| x.as_str())
         .or(data.get("deviceToken").and_then(|x| x.as_str()))
         .or(data.get("token").and_then(|x| x.as_str()))
         .or(data.get("accessToken").and_then(|x| x.as_str()))
@@ -520,19 +608,27 @@ pub fn refresh_account_token(acc: &mut Account) -> bool {
         return false;
     }
     acc.token = tok.to_string();
-    let new_rt = data.get("refresh_token").and_then(|x| x.as_str())
+    let new_rt = data
+        .get("refresh_token")
+        .and_then(|x| x.as_str())
         .or(data.get("refreshToken").and_then(|x| x.as_str()))
         .map(|s| s.to_string())
         .unwrap_or_else(|| acc.refreshToken.clone());
     acc.refreshToken = new_rt;
     let mut got_expiry = false;
-    if let Some(v) = data.get("expires_at").and_then(|x| x.as_str())
-        .or_else(|| data.get("expiresAt").and_then(|x| x.as_str())) {
+    if let Some(v) = data
+        .get("expires_at")
+        .and_then(|x| x.as_str())
+        .or_else(|| data.get("expiresAt").and_then(|x| x.as_str()))
+    {
         acc.expiresAt = v.to_string();
         got_expiry = true;
     }
-    if let Some(v) = data.get("refresh_token_expires_at").and_then(|x| x.as_str())
-        .or_else(|| data.get("refreshTokenExpiresAt").and_then(|x| x.as_str())) {
+    if let Some(v) = data
+        .get("refresh_token_expires_at")
+        .and_then(|x| x.as_str())
+        .or_else(|| data.get("refreshTokenExpiresAt").and_then(|x| x.as_str()))
+    {
         acc.refreshTokenExpiresAt = v.to_string();
         got_expiry = true;
     }
@@ -666,7 +762,11 @@ pub fn claim_account(acc: &mut Account, dry_run: bool) -> Value {
         return r;
     }
     if status != 200 {
-        r["msg"] = json!(format!("查询活动失败 HTTP {}: {}", status, data.to_string().chars().take(150).collect::<String>()));
+        r["msg"] = json!(format!(
+            "查询活动失败 HTTP {}: {}",
+            status,
+            data.to_string().chars().take(150).collect::<String>()
+        ));
         return r;
     }
 
@@ -679,10 +779,13 @@ pub fn claim_account(acc: &mut Account, dry_run: bool) -> Value {
 
     if dry_run {
         r["phase"] = json!("dry_run");
-        r["claimed"] = json!(todo.iter().map(|c| json!({
-            "campaignId": c.get("campaignId"),
-            "amount": c.pointer("/benefit/amount"),
-        })).collect::<Vec<_>>());
+        r["claimed"] = json!(todo
+            .iter()
+            .map(|c| json!({
+                "campaignId": c.get("campaignId"),
+                "amount": c.pointer("/benefit/amount"),
+            }))
+            .collect::<Vec<_>>());
         r["msg"] = json!(format!("干跑：可领 {} 项", todo.len()));
         return r;
     }
@@ -693,11 +796,17 @@ pub fn claim_account(acc: &mut Account, dry_run: bool) -> Value {
     for c in &todo {
         let cid = c.get("campaignId").and_then(|x| x.as_str()).unwrap_or("");
         let (s2, d2) = claim_one(acc, cid);
-        let dd = if d2.get("data").is_some() { d2.get("data").cloned().unwrap_or(json!({})) } else { d2.clone() };
+        let dd = if d2.get("data").is_some() {
+            d2.get("data").cloned().unwrap_or(json!({}))
+        } else {
+            d2.clone()
+        };
         let st = dd.get("status").and_then(|x| x.as_str()).unwrap_or("");
         let ok = s2 == 200 && (st == "CLAIMED" || st == "REPLAYED");
         if ok {
-            let amt = dd.pointer("/benefit/amount").and_then(|x| x.as_f64())
+            let amt = dd
+                .pointer("/benefit/amount")
+                .and_then(|x| x.as_f64())
                 .or(c.pointer("/benefit/amount").and_then(|x| x.as_f64()))
                 .unwrap_or(0.0);
             got += amt;
@@ -803,7 +912,13 @@ pub fn credits_summary(acc: &Account) -> (u16, Value) {
         Some(e) => e,
         None => return (0, json!({"error": "未知版本"})),
     };
-    api_call(ed, "/sash/api/v1/ai-conversations/credits-summary", "GET", &acc.token, None)
+    api_call(
+        ed,
+        "/sash/api/v1/ai-conversations/credits-summary",
+        "GET",
+        &acc.token,
+        None,
+    )
 }
 
 // ───────────────────────── 应用控制 / 切换 ─────────────────────────
@@ -833,10 +948,17 @@ pub fn quit_app(edition_key: &str) -> bool {
     };
     let osa = run_cmd_timeout(
         "osascript",
-        &["-e", &format!("tell application \"{}\" to quit", ed.app_name)],
+        &[
+            "-e",
+            &format!("tell application \"{}\" to quit", ed.app_name),
+        ],
         8000,
     );
-    eprintln!("[quit_app +{:?}] osascript 完成（{:?}）", t0.elapsed(), osa.is_some());
+    eprintln!(
+        "[quit_app +{:?}] osascript 完成（{:?}）",
+        t0.elapsed(),
+        osa.is_some()
+    );
     for _ in 0..20 {
         if !app_running(edition_key) {
             eprintln!("[quit_app +{:?}] 已退出", t0.elapsed());
@@ -921,7 +1043,8 @@ pub fn switch_account(account_id: &str, steps: &mut Vec<String>) -> Result<Strin
         steps.push("已由 token 构造登录态（该账号从未在本客户端登录过）".into());
         B64.decode(b64).map_err(|_| "登录态构造失败".to_string())?
     } else {
-        B64.decode(&target.authBlob).map_err(|_| "账号登录态数据损坏，请重新采集该账号".to_string())?
+        B64.decode(&target.authBlob)
+            .map_err(|_| "账号登录态数据损坏，请重新采集该账号".to_string())?
     };
     write_auth_blob(ed, &blob)?;
 
@@ -958,8 +1081,11 @@ pub fn export_accounts(path: &str) -> Result<usize, String> {
         "exportedAt": chrono::Utc::now().to_rfc3339(),
         "accounts": accounts,
     });
-    fs::write(path, serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    fs::write(
+        path,
+        serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     Ok(n)
 }
 
@@ -1008,7 +1134,10 @@ fn b64url_no_pad(data: &[u8]) -> String {
 fn urandom_bytes(n: usize) -> Vec<u8> {
     use std::io::Read;
     let mut buf = vec![0u8; n];
-    if fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut buf)).is_ok() {
+    if fs::File::open("/dev/urandom")
+        .and_then(|mut f| f.read_exact(&mut buf))
+        .is_ok()
+    {
         return buf;
     }
     let nanos = std::time::SystemTime::now()
@@ -1035,28 +1164,35 @@ fn gen_nonce() -> String {
     b[6] = (b[6] & 0x0f) | 0x40;
     b[8] = (b[8] & 0x3f) | 0x80;
     let h: String = b.iter().map(|x| format!("{:02x}", x)).collect();
-    format!("{}-{}-{}-{}-{}", &h[0..8], &h[8..12], &h[12..16], &h[16..20], &h[20..32])
+    format!(
+        "{}-{}-{}-{}-{}",
+        &h[0..8],
+        &h[8..12],
+        &h[12..16],
+        &h[16..20],
+        &h[20..32]
+    )
 }
 
 fn machine_id(ed: &Edition) -> String {
-    fs::read_to_string(
-        home()
-            .join(ed.data_dir)
-            .join("auth.machine-id"),
-    )
-    .map(|s| s.trim().to_string())
-    .ok()
-    .filter(|s| !s.is_empty())
-    .unwrap_or_else(|| {
-        hostname::get().map(|h| h.to_string_lossy().to_string()).unwrap_or_else(|_| "unknown-machine".into())
-    })
+    fs::read_to_string(home().join(ed.data_dir).join("auth.machine-id"))
+        .map(|s| s.trim().to_string())
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            hostname::get()
+                .map(|h| h.to_string_lossy().to_string())
+                .unwrap_or_else(|_| "unknown-machine".into())
+        })
 }
 
 fn urlencode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
             _ => out.push_str(&format!("%{:02X}", b)),
         }
     }
@@ -1084,17 +1220,25 @@ pub fn login_begin(edition_key: &str) -> Result<(LoginAttempt, String), String> 
     );
     let login_url = format!(
         "{}/users/sign-in?biz_variant={}&oauth_callback={}",
-        ed.auth_base, ed.biz_variant, urlencode(&device_url)
+        ed.auth_base,
+        ed.biz_variant,
+        urlencode(&device_url)
     );
     Ok((
-        LoginAttempt { edition: edition_key.to_string(), nonce, verifier },
+        LoginAttempt {
+            edition: edition_key.to_string(),
+            nonce,
+            verifier,
+        },
         login_url,
     ))
 }
 
 /// 轮询一次：Ok(None) = 继续等待；Ok(Some(session)) = 登录成功
 pub fn login_poll(attempt: &LoginAttempt) -> Result<Option<Value>, String> {
-    let Some(ed) = edition(&attempt.edition) else { return Err("未知版本".into()) };
+    let Some(ed) = edition(&attempt.edition) else {
+        return Err("未知版本".into());
+    };
     let path = format!(
         "/api/v1/deviceToken/poll?nonce={}&verifier={}&challenge_method=S256",
         attempt.nonce, attempt.verifier
@@ -1104,14 +1248,20 @@ pub fn login_poll(attempt: &LoginAttempt) -> Result<Option<Value>, String> {
         return Ok(None); // 尚未授权 / 网络抖动，继续等
     }
     if status != 200 {
-        let msg = data.get("errorMessage").and_then(|x| x.as_str())
+        let msg = data
+            .get("errorMessage")
+            .and_then(|x| x.as_str())
             .unwrap_or("登录失败");
         return Err(format!("{} (HTTP {})", msg, status));
     }
-    let token = data.get("token").and_then(|x| x.as_str())
+    let token = data
+        .get("token")
+        .and_then(|x| x.as_str())
         .or_else(|| data.get("device_token").and_then(|x| x.as_str()))
         .unwrap_or("");
-    let refresh = data.get("refresh_token").and_then(|x| x.as_str())
+    let refresh = data
+        .get("refresh_token")
+        .and_then(|x| x.as_str())
         .or_else(|| data.get("refreshToken").and_then(|x| x.as_str()))
         .unwrap_or("");
     if token.is_empty() || refresh.is_empty() {
@@ -1137,13 +1287,20 @@ pub fn login_poll(attempt: &LoginAttempt) -> Result<Option<Value>, String> {
         "phone": pick(&raw_user, &["security_mobile", "phone"]),
         "avatarUrl": pick(&raw_user, &["avatar_url", "avatar", "image_url"]),
     });
-    let expires_at = data.get("expires_at").and_then(|x| x.as_str())
+    let expires_at = data
+        .get("expires_at")
+        .and_then(|x| x.as_str())
         .map(|s| s.to_string())
         .unwrap_or_else(|| {
-            let secs = data.get("expires_in").and_then(|x| x.as_i64()).unwrap_or(3600);
+            let secs = data
+                .get("expires_in")
+                .and_then(|x| x.as_i64())
+                .unwrap_or(3600);
             (chrono::Utc::now() + chrono::Duration::seconds(secs)).to_rfc3339()
         });
-    let rt_expires = data.get("refresh_token_expires_at").and_then(|x| x.as_str())
+    let rt_expires = data
+        .get("refresh_token_expires_at")
+        .and_then(|x| x.as_str())
         .map(|s| s.to_string())
         .unwrap_or_default();
     Ok(Some(json!({
@@ -1163,12 +1320,18 @@ pub fn save_login_account(edition_key: &str, sess: &Value) -> Result<(Account, b
         return Err("登录结果缺少 token".into());
     }
     let user = sess.get("user").cloned().unwrap_or(json!({}));
-    let uid = user.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    let uid = user
+        .get("id")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
     if uid.is_empty() {
         return Err("登录结果缺少用户 ID".into());
     }
     let mut accounts = load_accounts();
-    let idx = accounts.iter().position(|a| a.edition == edition_key && a.uid == uid);
+    let idx = accounts
+        .iter()
+        .position(|a| a.edition == edition_key && a.uid == uid);
     let is_new = idx.is_none();
     if is_new {
         accounts.push(Account {
@@ -1181,18 +1344,45 @@ pub fn save_login_account(edition_key: &str, sess: &Value) -> Result<(Account, b
         let i = idx.unwrap_or(accounts.len() - 1);
         &mut accounts[i]
     };
-    acc.name = user.get("name").and_then(|x| x.as_str())
+    acc.name = user
+        .get("name")
+        .and_then(|x| x.as_str())
         .filter(|s| !s.is_empty())
         .or(user.get("email").and_then(|x| x.as_str()))
         .or(user.get("phone").and_then(|x| x.as_str()))
-        .unwrap_or(&uid[..uid.len().min(8)]).to_string();
-    acc.email = user.get("email").and_then(|x| x.as_str()).unwrap_or("").to_string();
-    acc.phone = user.get("phone").and_then(|x| x.as_str()).unwrap_or("").to_string();
-    acc.avatarUrl = user.get("avatarUrl").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        .unwrap_or(&uid[..uid.len().min(8)])
+        .to_string();
+    acc.email = user
+        .get("email")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    acc.phone = user
+        .get("phone")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    acc.avatarUrl = user
+        .get("avatarUrl")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
     acc.token = token.to_string();
-    acc.refreshToken = sess.get("refreshToken").and_then(|x| x.as_str()).unwrap_or("").to_string();
-    acc.expiresAt = sess.get("expiresAt").and_then(|x| x.as_str()).unwrap_or("").to_string();
-    acc.refreshTokenExpiresAt = sess.get("refreshTokenExpiresAt").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    acc.refreshToken = sess
+        .get("refreshToken")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    acc.expiresAt = sess
+        .get("expiresAt")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    acc.refreshTokenExpiresAt = sess
+        .get("refreshTokenExpiresAt")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
     acc.savedAt = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     // OAuth 登录的账号客户端磁盘上没有它的 auth.v1.dat，必须现场构造登录态供切换使用
     acc.authBlob = build_auth_blob(_ed, acc)?;
@@ -1207,6 +1397,8 @@ pub fn save_login_account(edition_key: &str, sess: &Value) -> Result<(Account, b
 
 /// 配额信息：GET /sash/api/v2/me/usage（套餐 + 加量包余量）
 pub fn quota_info(acc: &Account) -> (u16, Value) {
-    let Some(ed) = edition(&acc.edition) else { return (0, json!({})) };
+    let Some(ed) = edition(&acc.edition) else {
+        return (0, json!({}));
+    };
     api_call(ed, "/sash/api/v2/me/usage", "GET", &acc.token, None)
 }

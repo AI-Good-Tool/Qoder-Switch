@@ -1,0 +1,78 @@
+{
+  "time": "2026-10-21T02:12:24.482363+00:00",
+  "kind": "live",
+  "model": "dfmodel",
+  "maxModelRequests": 4,
+  "maxOutputTokensPerRequest": 128,
+  "checks": [
+    {
+      "name": "models",
+      "passed": true,
+      "count": 11
+    },
+    {
+      "name": "count_tokens",
+      "passed": true
+    },
+    {
+      "name": "messages_tool",
+      "passed": true,
+      "http": 200,
+      "stopReason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 128,
+        "input_tokens": 162,
+        "output_tokens": 47
+      }
+    },
+    {
+      "name": "messages_tool_result_sse",
+      "passed": true,
+      "http": 200,
+      "eventTypes": [
+        "message_start",
+        "content_block_start",
+        "content_block_delta",
+        "content_block_stop",
+        "message_delta",
+        "message_stop"
+      ],
+      "errors": []
+    },
+    {
+      "name": "responses_custom_tool",
+      "passed": true,
+      "http": 200,
+      "responseStatus": "completed",
+      "usage": {
+        "input_tokens": 331,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 51,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 382
+      }
+    },
+    {
+      "name": "responses_tool_result_sse",
+      "passed": true,
+      "http": 200,
+      "eventTypes": [
+        "response.created",
+        "response.in_progress",
+        "response.output_item.added",
+        "response.content_part.added",
+        "response.output_text.delta",
+        "response.output_text.done",
+        "response.content_part.done",
+        "response.output_item.done",
+        "response.completed"
+      ],
+      "errors": []
+    }
+  ]
+}

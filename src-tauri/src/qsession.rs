@@ -128,8 +128,7 @@ fn save_links(links: &Value) -> Result<(), String> {
     let dir = qcore::switch_dir();
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let tmp = links_file().with_extension("tmp");
-    fs::write(&tmp, serde_json::to_string_pretty(links).unwrap())
-        .map_err(|e| e.to_string())?;
+    fs::write(&tmp, serde_json::to_string_pretty(links).unwrap()).map_err(|e| e.to_string())?;
     fs::rename(&tmp, links_file()).map_err(|e| e.to_string())
 }
 
@@ -199,10 +198,7 @@ pub fn list_sessions(edition_key: &str, query: &str, limit: i64) -> Result<Value
         let sid = r["session_id"].as_str().unwrap_or("").to_string();
         let jsonl = jsonl_for(ed, &sid);
         let (size, has_file) = match &jsonl {
-            Some(p) => (
-                fs::metadata(p).ok().map(|m| m.len()).unwrap_or(0),
-                true,
-            ),
+            Some(p) => (fs::metadata(p).ok().map(|m| m.len()).unwrap_or(0), true),
             None => (0, false),
         };
         // 关联信息
@@ -211,16 +207,21 @@ pub fn list_sessions(edition_key: &str, query: &str, limit: i64) -> Result<Value
         if let Some(groups) = links["groups"].as_array() {
             for g in groups {
                 let members = g["members"].as_array().cloned().unwrap_or_default();
-                let hit = members
-                    .iter()
-                    .any(|m| m["sessionId"].as_str() == Some(sid.as_str()) && m["edition"].as_str() == Some(edition_key));
+                let hit = members.iter().any(|m| {
+                    m["sessionId"].as_str() == Some(sid.as_str())
+                        && m["edition"].as_str() == Some(edition_key)
+                });
                 if hit {
                     group_id = g["id"].clone();
                     // 重新计算各成员当前摘要做状态判定
                     let mut cur = Vec::new();
                     for m in &members {
-                        let Some(med) = qcore::edition(m["edition"].as_str().unwrap_or("")) else { continue };
-                        let Some(mid) = m["sessionId"].as_str() else { continue };
+                        let Some(med) = qcore::edition(m["edition"].as_str().unwrap_or("")) else {
+                            continue;
+                        };
+                        let Some(mid) = m["sessionId"].as_str() else {
+                            continue;
+                        };
                         if let Some(p) = jsonl_for(med, mid) {
                             if let Some(d) = file_digest(&p) {
                                 cur.push(d);
@@ -316,7 +317,11 @@ fn insert_copy_row(ed: &Edition, src: &Value, new_id: &str) -> Result<(), String
 pub fn copy_session(edition_key: &str, session_id: &str) -> Result<Value, String> {
     let t0 = std::time::Instant::now();
     let log = |msg: String| eprintln!("[copy_session +{:?}] {}", t0.elapsed(), msg);
-    log(format!("开始：edition={} session={}", edition_key, &session_id[..8.min(session_id.len())]));
+    log(format!(
+        "开始：edition={} session={}",
+        edition_key,
+        &session_id[..8.min(session_id.len())]
+    ));
     let ed = qcore::edition(edition_key).ok_or("未知版本")?;
     if qcore::app_running(edition_key) {
         log("应用运行中，先退出…".into());
@@ -372,8 +377,10 @@ pub fn copy_session(edition_key: &str, session_id: &str) -> Result<Value, String
     let mut reused = false;
     for g in groups.iter_mut() {
         let hit = g["members"].as_array().map(|ms| {
-            ms.iter()
-                .any(|m| m["sessionId"].as_str() == Some(session_id) && m["edition"].as_str() == Some(edition_key))
+            ms.iter().any(|m| {
+                m["sessionId"].as_str() == Some(session_id)
+                    && m["edition"].as_str() == Some(edition_key)
+            })
         });
         if hit == Some(true) {
             if let Some(ms) = g["members"].as_array_mut() {
@@ -410,15 +417,22 @@ pub fn copy_session(edition_key: &str, session_id: &str) -> Result<Value, String
 
 pub fn session_links() -> Value {
     let mut links = load_links();
-    let groups = links["groups"].as_array_mut().map(|g| g.to_vec()).unwrap_or_default();
+    let groups = links["groups"]
+        .as_array_mut()
+        .map(|g| g.to_vec())
+        .unwrap_or_default();
     let mut out = Vec::new();
     for mut g in groups {
         let members = g["members"].as_array().cloned().unwrap_or_default();
         let mut detail = Vec::new();
         let mut cur_digests = Vec::new();
         for m in &members {
-            let Some(ed) = qcore::edition(m["edition"].as_str().unwrap_or("")) else { continue };
-            let Some(sid) = m["sessionId"].as_str() else { continue };
+            let Some(ed) = qcore::edition(m["edition"].as_str().unwrap_or("")) else {
+                continue;
+            };
+            let Some(sid) = m["sessionId"].as_str() else {
+                continue;
+            };
             let jsonl = jsonl_for(ed, sid);
             let title = jsonl
                 .as_ref()
@@ -466,17 +480,26 @@ pub fn sync_group(group_id: &str) -> Result<Value, String> {
         .iter()
         .position(|g| g["id"].as_str() == Some(group_id))
         .ok_or("关联组不存在")?;
-    let members = groups[gi]["members"].as_array().cloned().ok_or("组数据损坏")?;
+    let members = groups[gi]["members"]
+        .as_array()
+        .cloned()
+        .ok_or("组数据损坏")?;
     if members.len() < 2 {
         return Err("关联组成员不足".to_string());
     }
     // 找最新成员
     let mut best: Option<(PathBuf, String, std::time::SystemTime)> = None;
     for m in &members {
-        let Some(ed) = qcore::edition(m["edition"].as_str().unwrap_or("")) else { continue };
-        let Some(sid) = m["sessionId"].as_str() else { continue };
+        let Some(ed) = qcore::edition(m["edition"].as_str().unwrap_or("")) else {
+            continue;
+        };
+        let Some(sid) = m["sessionId"].as_str() else {
+            continue;
+        };
         if let Some(p) = jsonl_for(ed, sid) {
-            let mt = fs::metadata(&p).and_then(|m| m.modified()).unwrap_or(UNIX_EPOCH);
+            let mt = fs::metadata(&p)
+                .and_then(|m| m.modified())
+                .unwrap_or(UNIX_EPOCH);
             if best.as_ref().map(|(_, _, t)| mt > *t).unwrap_or(true) {
                 best = Some((p, sid.to_string(), mt));
             }
@@ -486,12 +509,18 @@ pub fn sync_group(group_id: &str) -> Result<Value, String> {
     let src_content = fs::read_to_string(&src_path).map_err(|e| e.to_string())?;
     let mut synced = 0usize;
     for m in &members {
-        let Some(ed) = qcore::edition(m["edition"].as_str().unwrap_or("")) else { continue };
-        let Some(sid) = m["sessionId"].as_str() else { continue };
+        let Some(ed) = qcore::edition(m["edition"].as_str().unwrap_or("")) else {
+            continue;
+        };
+        let Some(sid) = m["sessionId"].as_str() else {
+            continue;
+        };
         if sid == &src_id {
             continue;
         }
-        let Some(p) = jsonl_for(ed, sid) else { continue };
+        let Some(p) = jsonl_for(ed, sid) else {
+            continue;
+        };
         let content = src_content.replace(&src_id, sid);
         fs::write(&p, content).map_err(|e| e.to_string())?;
         let side_old = src_path.parent().unwrap().join(&src_id);
@@ -543,9 +572,11 @@ pub fn delete_session(edition_key: &str, session_id: &str) -> Result<Value, Stri
     let row = rows.first().cloned().ok_or("会话不存在")?;
     // 备份
     let ts = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let backup_dir = qcore::switch_dir()
-        .join("session-backups")
-        .join(format!("{}-{}", ts, &session_id[..8.min(session_id.len())]));
+    let backup_dir = qcore::switch_dir().join("session-backups").join(format!(
+        "{}-{}",
+        ts,
+        &session_id[..8.min(session_id.len())]
+    ));
     fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
     fs::write(
         backup_dir.join("chat_sessions-row.json"),
@@ -612,7 +643,9 @@ fn clear_renderer_route_cache(ed: &Edition, session_id: &str) -> bool {
                 for unit in session_id.encode_utf16() {
                     u16le.extend_from_slice(&unit.to_le_bytes());
                 }
-                if data.windows(session_id.len()).any(|w| w == session_id.as_bytes())
+                if data
+                    .windows(session_id.len())
+                    .any(|w| w == session_id.as_bytes())
                     || data.windows(u16le.len()).any(|w| w == u16le)
                 {
                     found = true;
@@ -641,12 +674,26 @@ pub fn credit_stats(tz_off: Option<i64>) -> Value {
         if acc.token.is_empty() {
             continue;
         }
-        let Some(ed) = qcore::edition(&acc.edition) else { continue };
+        let Some(ed) = qcore::edition(&acc.edition) else {
+            continue;
+        };
         // summary
-        let (s_status, s_body) = qcore::api_call(ed, "/sash/api/v1/ai-conversations/credits-summary", "GET", &acc.token, None);
+        let (s_status, s_body) = qcore::api_call(
+            ed,
+            "/sash/api/v1/ai-conversations/credits-summary",
+            "GET",
+            &acc.token,
+            None,
+        );
         let summary = if s_status == 200 { s_body } else { json!({}) };
         // heatmap
-        let (h_status, h_body) = qcore::api_call(ed, "/sash/api/v1/ai-conversations/credits-heatmap", "GET", &acc.token, None);
+        let (h_status, h_body) = qcore::api_call(
+            ed,
+            "/sash/api/v1/ai-conversations/credits-heatmap",
+            "GET",
+            &acc.token,
+            None,
+        );
         let items = if h_status == 200 {
             h_body["items"].as_array().cloned().unwrap_or_default()
         } else {
@@ -660,7 +707,8 @@ pub fn credit_stats(tz_off: Option<i64>) -> Value {
         let tc = summary["totalCredits"].as_f64().unwrap_or(0.0);
         let pc = summary["peakCredits"].as_f64().unwrap_or(0.0);
         // 配额（套餐 + 加量包合并）
-        let (q_status, q_body) = qcore::api_call(ed, "/sash/api/v2/me/usage", "GET", &acc.token, None);
+        let (q_status, q_body) =
+            qcore::api_call(ed, "/sash/api/v2/me/usage", "GET", &acc.token, None);
         let (mut q_total, mut q_used) = (0.0f64, 0.0f64);
         if q_status == 200 {
             for key in ["userQuota", "addOnQuota"] {

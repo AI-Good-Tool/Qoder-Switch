@@ -12,3 +12,8 @@ node_modules/
 .vscode/
 .idea/
 *.log
+
+# Local installers and account diagnostic screenshots
+releases/
+docs/images/cc-switch-fixed.png
+docs/images/gateway-macos.png

@@ -1,6 +1,6 @@
 [package]
 name = "qoder-switch"
-version = "1.6.0"
+version = "1.7.4"
 description = "Qoder account switcher and daily credits auto-claim"
 edition = "2021"
 
@@ -24,6 +24,13 @@ ureq = { version = "2", features = ["json"] }
 dirs = "5"
 chrono = { version = "0.4", features = ["serde"] }
 hostname = "0.4"
+
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream", "gzip"] }
+uuid = { version = "1", features = ["v4"] }
+futures-util = "0.3"
+async-stream = "0.3"
 
 [profile.release]
 opt-level = 3

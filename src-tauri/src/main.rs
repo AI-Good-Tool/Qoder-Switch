@@ -1,9 +1,15 @@
 //! Qoder Switch 桌面客户端（Tauri）
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod anthropic;
+mod custom_tools;
 mod qcore;
+mod qproxy;
 mod qsession;
 mod qstats;
+mod qusage;
+mod response_tools;
+mod responses;
 
 use qcore as qc;
 use serde_json::{json, Value};
@@ -21,7 +27,10 @@ struct AppState {
 
 // ───────────────────────── 状态聚合 ─────────────────────────
 
-fn account_public(a: &qc::Account, current_uids: &std::collections::HashMap<String, String>) -> Value {
+fn account_public(
+    a: &qc::Account,
+    current_uids: &std::collections::HashMap<String, String>,
+) -> Value {
     json!({
         "id": a.id(),
         "edition": a.edition,
@@ -49,21 +58,31 @@ fn build_state(state: &AppState) -> Value {
         let mut uname = String::new();
         if installed {
             if let Some(sess) = qc::decrypt_auth_dat(ed) {
-                uid = sess.pointer("/user/id").and_then(|x| x.as_str()).unwrap_or("").to_string();
-                uname = sess.pointer("/user/name").and_then(|x| x.as_str())
+                uid = sess
+                    .pointer("/user/id")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                uname = sess
+                    .pointer("/user/name")
+                    .and_then(|x| x.as_str())
                     .or(sess.pointer("/user/email").and_then(|x| x.as_str()))
                     .or(sess.pointer("/user/phone").and_then(|x| x.as_str()))
-                    .unwrap_or("").to_string();
+                    .unwrap_or("")
+                    .to_string();
             }
         }
         current_uids.insert(ed.key.to_string(), uid.clone());
-        editions.insert(ed.key.to_string(), json!({
-            "label": ed.label,
-            "installed": installed,
-            "running": installed && qc::app_running(ed.key),
-            "currentUid": uid,
-            "currentName": uname,
-        }));
+        editions.insert(
+            ed.key.to_string(),
+            json!({
+                "label": ed.label,
+                "installed": installed,
+                "running": installed && qc::app_running(ed.key),
+                "currentUid": uid,
+                "currentName": uname,
+            }),
+        );
     }
     let accounts: Vec<Value> = qc::load_accounts()
         .iter()
@@ -71,7 +90,15 @@ fn build_state(state: &AppState) -> Value {
         .collect();
     let sched = state.scheduler.lock().unwrap();
     let log = qc::load_claim_log();
-    let tail: Vec<Value> = log.iter().rev().take(30).cloned().collect::<Vec<_>>().into_iter().rev().collect();
+    let tail: Vec<Value> = log
+        .iter()
+        .rev()
+        .take(30)
+        .cloned()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
     json!({
         "editions": editions,
         "accounts": accounts,
@@ -336,11 +363,9 @@ async fn export_accounts() -> Result<Value, String> {
 
 #[tauri::command]
 async fn import_accounts(path: String) -> Result<Value, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        match qc::import_accounts(&path) {
-            Ok(n) => Ok(json!({ "ok": n > 0, "message": format!("成功导入/更新 {} 个账号", n) })),
-            Err(e) => Ok(json!({ "ok": false, "message": e })),
-        }
+    tauri::async_runtime::spawn_blocking(move || match qc::import_accounts(&path) {
+        Ok(n) => Ok(json!({ "ok": n > 0, "message": format!("成功导入/更新 {} 个账号", n) })),
+        Err(e) => Ok(json!({ "ok": false, "message": e })),
     })
     .await
     .map_err(|e| e.to_string())?
@@ -349,9 +374,17 @@ async fn import_accounts(path: String) -> Result<Value, String> {
 // ───────────────────────── 会话管理命令 ─────────────────────────
 
 #[tauri::command]
-async fn list_sessions(edition: String, query: Option<String>, limit: Option<i64>) -> Result<Value, String> {
+async fn list_sessions(
+    edition: String,
+    query: Option<String>,
+    limit: Option<i64>,
+) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        qsession::list_sessions(&edition, query.as_deref().unwrap_or(""), limit.unwrap_or(200))
+        qsession::list_sessions(
+            &edition,
+            query.as_deref().unwrap_or(""),
+            limit.unwrap_or(200),
+        )
     })
     .await
     .map_err(|e| e.to_string())?
@@ -462,10 +495,20 @@ async fn refresh_account(id: String) -> Result<Value, String> {
 // ───────────────────────── Token 统计 ─────────────────────────
 
 #[tauri::command]
-async fn token_stats(edition: String, tz_offset: Option<i64>) -> Result<Value, String> {
-    tauri::async_runtime::spawn_blocking(move || qstats::token_stats(&edition, tz_offset))
-        .await
-        .map_err(|e| e.to_string())?
+async fn token_stats(
+    edition: String,
+    tz_offset: Option<i64>,
+    source: Option<String>,
+) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if source.as_deref() == Some("proxy") {
+            qusage::stats(&edition, tz_offset)
+        } else {
+            qstats::token_stats(&edition, tz_offset)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // ───────────────────────── 后台自动领取 ─────────────────────────
@@ -486,7 +529,11 @@ fn spawn_auto_claim(app: tauri::AppHandle) {
 fn run_auto_claim(app: &tauri::AppHandle) {
     use tauri::Manager;
     let state = app.state::<AppState>();
-    if !qc::load_settings().get("autoClaim").and_then(|x| x.as_bool()).unwrap_or(true) {
+    if !qc::load_settings()
+        .get("autoClaim")
+        .and_then(|x| x.as_bool())
+        .unwrap_or(true)
+    {
         return;
     }
     let accounts = qc::load_accounts();
@@ -520,6 +567,9 @@ fn run_auto_claim(app: &tauri::AppHandle) {
 // ───────────────────────── 入口 ─────────────────────────
 
 fn main() {
+    if qproxy::run_cli(&std::env::args().collect::<Vec<_>>()) {
+        return;
+    }
     // 调试：--dump-state 直接打印 get_state 的 JSON 并退出
     if std::env::args().any(|a| a == "--dump-state") {
         let state = AppState {
@@ -528,7 +578,10 @@ fn main() {
                 last_results: vec![],
             }),
         };
-        println!("{}", serde_json::to_string_pretty(&build_state(&state)).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&build_state(&state)).unwrap()
+        );
         return;
     }
     // 调试：--claim 立即对所有账号执行一次领取并打印结果
@@ -543,12 +596,16 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if let Some(pos) = args.iter().position(|a| a == "--sessions") {
         let ed = args.get(pos + 1).map(|s| s.as_str()).unwrap_or("cn");
-        let r = qsession::list_sessions(ed, "", 20).unwrap_or_else(|e| serde_json::json!({"error": e}));
+        let r =
+            qsession::list_sessions(ed, "", 20).unwrap_or_else(|e| serde_json::json!({"error": e}));
         println!("{}", serde_json::to_string_pretty(&r).unwrap());
         return;
     }
     if args.iter().any(|a| a == "--cstats") {
-        println!("{}", serde_json::to_string(&qsession::credit_stats(None)).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string(&qsession::credit_stats(None)).unwrap()
+        );
         return;
     }
     if let Some(pos) = args.iter().position(|a| a == "--tstats") {
@@ -575,11 +632,15 @@ fn main() {
         let mut steps = vec![];
         match qc::switch_account(&id, &mut steps) {
             Ok(msg) => {
-                for s in &steps { eprintln!("[step] {}", s); }
+                for s in &steps {
+                    eprintln!("[step] {}", s);
+                }
                 println!("OK: {}", msg);
             }
             Err(e) => {
-                for s in &steps { eprintln!("[step] {}", s); }
+                for s in &steps {
+                    eprintln!("[step] {}", s);
+                }
                 eprintln!("切换失败：{}", e);
                 std::process::exit(1);
             }
@@ -587,6 +648,7 @@ fn main() {
         return;
     }
     tauri::Builder::default()
+        .manage(qproxy::Gateway::new().expect("无法初始化本地网关"))
         .manage(AppState {
             scheduler: Mutex::new(SchedulerState {
                 last_run: None,
@@ -594,6 +656,14 @@ fn main() {
             }),
         })
         .invoke_handler(tauri::generate_handler![
+            qproxy::gateway_state,
+            qproxy::gateway_start,
+            qproxy::gateway_stop,
+            qproxy::gateway_save,
+            qproxy::gateway_generate_key,
+            qproxy::gateway_set_key,
+            qproxy::gateway_models,
+            qproxy::gateway_clear_logs,
             ping,
             get_state,
             capture,

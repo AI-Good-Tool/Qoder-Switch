@@ -1,0 +1,18 @@
+{
+  "version": "1.7.2",
+  "artifact": "Qoder-Switch_1.7.2_macos_arm64.dmg",
+  "bytes": 4214205,
+  "sha256": "14b2bee6a3bcc2136ceddcfefdc9ae69937f1c893bc70ffed3c665d2001b2f0b",
+  "rustTests": 33,
+  "javascriptSyntax": "passed",
+  "signature": "ad-hoc verified",
+  "notarized": false,
+  "uiVerification": "offline synthetic requests; actual/missing usage rendering verified",
+  "changes": [
+    "persistent numeric proxy usage ledger",
+    "actual/local stats source selection",
+    "region/date/account/model filters and request details",
+    "retain latest usage on interrupted stream"
+  ],
+  "historicalLimit": "Only requests after upgrading are persisted; lost old runtime logs cannot be reconstructed"
+}

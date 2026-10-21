@@ -1,0 +1,28 @@
+// Development-only preview. Synthetic accounts and metadata; no official requests.
+import http from 'node:http';
+import {readFile} from 'node:fs/promises';
+import {resolve,extname} from 'node:path';
+const root=resolve(import.meta.dirname,'../ui');
+const fixture=`<script>
+const config={transport:'legacy',port:24818,edition:'cn',strategy:'roundRobin',disabledAccounts:['cn:preview4'],cnEndpoint:'https://gateway.qoder.com.cn',intlEndpoint:'https://api2.qoder.sh'};
+const accounts=['大飞龙','小米不是米','码上农业','李小米','李小茶','码农3号','青青李子','安好'].map((name,i)=>({id:'cn:preview'+i,uid:'07efe4fd-a82c-4270-af2f-'+i+'b16abcd',edition:i===7?'intl':'cn',name,email:'demo'+i+'@example.test',note:i===2?'研发工作区':'',phone:'',hasToken:true,expiresAt:'2027-01-01T00:00:00Z',isCurrent:i===1}));
+const gateway={config,apiKey:'OFFLINE_PREVIEW_KEY_ONLY',running:false,active:0,accounts:accounts.map((a,i)=>({id:a.id,enabled:i!==4,active:i===1?1:0,cooldownSeconds:0})),models:[],logs:[],error:'',modelUpdated:null};
+window.__TAURI__={core:{invoke:async function(cmd,args){
+if(cmd==='get_state')return {accounts,editions:{cn:{label:'Qoder 国内版',installed:true,running:false},intl:{label:'Qoder 国际版',installed:true,running:false}},settings:{theme:localStorage.getItem('qs-theme')||'light',lang:'zh',timezone:'system',tokenFmt:'km'},scheduler:{lastRun:null},claimLog:[]};
+if(cmd==='token_stats'){const date=new Date().toISOString().slice(0,10);return {available:true, daily:[{date,tokens:12500,in:10000,out:2500,requests:2}],projects:[{name:'演示账号',tokens:12500,requests:2,daily:{[date]:{tokens:12500,requests:2}}}],models:[],requests:[{ts:date+' 12:00:00',model:'GLM-5.3-Flash',cwd:'演示账号',title:'messages · completed',inTokens:10000,outTokens:2500,durationMs:1900},{ts:date+' 12:01:00',model:'GLM-5.3-Flash',cwd:'演示账号',title:'responses · failed',inTokens:null,outTokens:null,durationMs:800}]};}
+if(cmd==='credits')return {ok:true,data:{usage:{userQuota:{total:2000,remaining:1441.51,used:558.49},addOnQuota:{total:400,remaining:312.5,used:87.5}}}};
+if(cmd==='gateway_generate_key')return 'qs_'+crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-','');
+if(cmd==='gateway_set_key'){if(!/^[!-~]{32,256}$/.test(args.apiKey))throw new Error('API Key 需为 32–256 位 ASCII 可见字符，不能包含空格或换行');gateway.apiKey=args.apiKey;return {ok:true};}
+if(cmd==='gateway_state'){gateway.accounts.forEach(a=>a.enabled=!config.disabledAccounts.includes(a.id));return structuredClone(gateway);}
+if(cmd==='gateway_start'){gateway.running=true;return gateway;}
+if(cmd==='gateway_stop'){gateway.running=false;return {};}
+if(cmd==='gateway_save'){Object.assign(config,args.config);return gateway;}
+if(cmd==='gateway_models'){gateway.models=[{id:'preview-model',name:'Offline Preview Model',supportsImages:true,supportsTools:true}];return {count:1};}
+if(cmd==='set_theme'){document.body.classList.toggle('dark',args.theme==='dark');return {};}
+if(cmd==='set_setting')return {};
+throw new Error('Offline preview: '+cmd+' unavailable');
+}}};
+</script>`;
+http.createServer(async(req,res)=>{
+try{const pathname=new URL(req.url,'http://localhost').pathname;const file=resolve(root,pathname==='/'?'index.html':'.'+pathname);if(!file.startsWith(root+'/'))throw Error();let bytes=await readFile(file);const ext=extname(file);if(ext==='.html')bytes=Buffer.from(bytes.toString().replace('<script src="gateway-shell.js">',fixture+'<script src="gateway-shell.js">'));res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css'})[ext]||'application/octet-stream');res.end(bytes);}catch{res.writeHead(404);res.end();}
+}).listen(24819,'127.0.0.1',()=>console.log('Offline UI preview http://127.0.0.1:24819'));

@@ -1,0 +1,25 @@
+{
+  "version": "1.7.1",
+  "architecture": "arm64",
+  "artifact": "Qoder-Switch_1.7.1_macos_arm64.dmg",
+  "bytes": 4193035,
+  "sha256": "f6c7c37d5ca565f6698a16fa215f1f1a1a32708eccd44b51d2f27cfdac3714fc",
+  "testsPassed": 32,
+  "checks": [
+    "Official names advertised on all model-list aliases",
+    "Official names and old internal IDs accepted across three protocols, JSON and SSE",
+    "Upstream receives internal ID; downstream preserves requested name",
+    "Ambiguous names disambiguated without shadowing internal IDs",
+    "JavaScript syntax checks passed",
+    "App codesign --verify --deep --strict passed",
+    "No existing account tokens or gateway key found in executable"
+  ],
+  "productionModelCallsThisRevision": 0,
+  "sources": {
+    "src-tauri/src/qproxy.rs": "fbd295cc5bbf1a4e4c7f1532820258a969bfba67a1d08941dacd587be17448d8",
+    "ui/gateway.js": "bf5111ab2be7771b8e972959e8026ea51777d7f5a28edb79ad3d48bfbb357c2a",
+    "ui/gateway-shell.js": "84913e75bbfa3fd8bc8d1ea8a79391f1c661b269b61fb97b039f44252a6befb6",
+    "src-tauri/Cargo.toml": "57b0da81f85d8c7f06fd8a4ef0ec7428888ae1677790f15bfa53bd3895b3630b",
+    "src-tauri/tauri.conf.json": "da19dea59e7bcce0c8a2029dc9ab45d72ca0b61e5570811530544f8f10ca4f9d"
+  }
+}

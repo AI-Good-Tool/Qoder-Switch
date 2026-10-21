@@ -7,7 +7,7 @@ let CSTATS = null;         // 积分统计
 let TSTATS = {};           // Token 统计（按版本缓存）
 let SESS_FILTER = 'all';
 let CREDIT = { view: 'all', shareRange: 'today', chartRange: '30d', chartAcc: 'all', detailAcc: null };
-let TSTAT = { src: 'cn', range: '30d', dist: 'projects', page: 0 };
+let TSTAT = { source: 'proxy', src: 'cn', range: '30d', dist: 'projects', page: 0 };
 
 /* ───────── 基础 UI ───────── */
 function esc(s) {
@@ -390,7 +390,7 @@ async function load() {
 
 function edSection(e) {
   const ed = STATE.editions[e];
-  if (!ed || !ed.installed) return '';
+  if (!ed) return '';
   const accs = STATE.accounts.filter(a => a.edition === e);
   let h = `<div class="section"><div class="sec-head">
     <h2>${esc(tmsg(ed.label))}</h2>
@@ -441,36 +441,73 @@ const ICON_EYE_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 const ICON_EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg>';
 window.__toggleReveal = (id) => { REVEAL[id] = !REVEAL[id]; renderAccounts(); };
 
+const ACCOUNT_VIEW = { edition: 'cn', query: '', compact: false };
+const ACCOUNT_USAGE = new Map();
+function accountQuota(a) {
+  const cached=ACCOUNT_USAGE.get(a.id);
+  const usage=cached?.usage;
+  const parts=[['订阅额度',usage?.userQuota],['个人资源包',usage?.addOnQuota]];
+  const known=parts.some(([,q])=>q && q.remaining != null && Number.isFinite(Number(q.remaining)));
+  const total=parts.reduce((sum,[,q])=>sum+(Number(q?.remaining)||0),0);
+  return `<div class="pool-balance"><div><span class="pool-star">☆</span><strong>${known?fmtNum(total):'—'}</strong><span>剩余积分</span></div><small>${cached?.updated ? esc((tzParts(new Date(cached.updated),true)||new Date(cached.updated).toLocaleTimeString('zh-CN',{hour12:false})).slice(-8))+' 更新' : '尚未查询'}</small></div>
+    <div class="pool-quota-head"><span>额度概览</span><button onclick="showInfo('${a.id}')">查看积分详情 ↗</button></div>
+    <div class="pool-quota-list">${parts.map(([name,q])=>{
+      const ready=q && q.remaining != null && Number.isFinite(Number(q.remaining));
+      const pct=ready&&Number(q.total)>0?Math.max(0,Math.min(100,Number(q.remaining)/Number(q.total)*100)):0;
+      return `<div class="pool-quota"><div><span>${name}</span><b>${ready?fmtNum(Number(q.remaining))+' / '+fmtNum(Number(q.total)||0):'待查询'}</b></div><div class="pool-track"><i style="width:${pct}%"></i></div></div>`;
+    }).join('')}</div>${cached?.error?`<div class="pool-fetch-error">${esc(cached.error)}</div>`:''}`;
+}
 function accountCard(a) {
   const hasPhone = !!a.phone && !a.email;
-  const contact = a.email || (hasPhone ? (REVEAL[a.id] ? a.phone : maskPhone(a.phone)) : a.uid.slice(0, 13));
-  const eyeBtn = hasPhone ? `<span class="eye" title="${REVEAL[a.id] ? tr('隐藏手机号', 'Hide phone') : tr('显示手机号', 'Show phone')}" onclick="event.stopPropagation();__toggleReveal('${a.id}')">${REVEAL[a.id] ? ICON_EYE_ON : ICON_EYE_OFF}</span>` : '';
-  return `<div class="card ${a.isCurrent ? 'current' : ''}">
-    <div class="head">
-      <div class="avatar fb" title="${esc(a.name) || ''}">${AVFB}</div>
-      <div><div class="name">${esc(a.name) || tr('未命名', 'Unnamed')}</div>
-      <div class="sub">${esc(contact)}${eyeBtn}</div></div>
+  const contact = a.email || (hasPhone ? (REVEAL[a.id] ? a.phone : maskPhone(a.phone)) : '');
+  const eyeBtn = hasPhone ? `<button class="eye" aria-label="${REVEAL[a.id]?'隐藏手机号':'显示手机号'}" onclick="__toggleReveal('${a.id}')">${REVEAL[a.id] ? ICON_EYE_ON : ICON_EYE_OFF}</button>` : '';
+  const name=a.note||a.name||contact||'未命名';
+  const tone=Array.from(a.uid||name).reduce((v,c)=>v+c.codePointAt(0),0)%4;
+  return `<article class="card pool-card ${a.isCurrent ? 'current' : ''}">
+    <div class="pool-identity"><div class="pool-avatar tone-${tone}">${esc(Array.from(name)[0])}</div>
+      <div class="pool-identity-text"><div class="name" title="${esc(name)}">${esc(name)}</div><div class="pool-uid" title="${esc(a.uid)}">UID · ${esc(a.uid)}</div><div class="pool-contact">${esc(contact||a.name||'—')}${eyeBtn}</div></div>
+      <details class="pool-menu"><summary aria-label="账号操作">•••</summary><div><button onclick="editNote('${a.id}')">修改备注</button><button onclick="refreshAcc('${a.id}',this)">刷新登录凭证</button><button class="danger" onclick="delAccount('${a.id}')">删除账号</button></div></details>
     </div>
-    ${a.note ? `<div class="note">📝 ${esc(a.note)}</div>` : ''}
-    <div class="sub">
-      <span class="pill">${edLabel(a.edition)}</span>
-      ${a.isCurrent ? `<span class="pill on">${tr('当前登录', 'Signed In')}</span>` : ''}
-      ${expiryPill(a)}
+    <div class="pool-usage" data-usage-account="${esc(a.id)}">${accountQuota(a)}</div>
+    <div class="pool-footer"><div class="pool-account-status">${a.isCurrent?'<span class="pill on">当前登录</span>':'<span class="pill">未选中</span>'}${expiryPill(a)}</div>
+      <div class="ops"><button class="primary" onclick="doSwitch('${a.id}',this)" ${a.isCurrent?'disabled':''}>${a.isCurrent?'✓ 当前账号':'切换账号'}</button><button onclick="claimOne('${a.id}',this)">领取积分</button><button onclick="refreshPoolUsage('${a.id}',this)" title="查询最新积分额度">刷新积分</button></div>
+      <div class="gateway-slot" data-account="${esc(a.id)}"></div>
     </div>
-    <div class="ops">
-      <button class="primary" onclick="doSwitch('${a.id}',this)" ${a.isCurrent ? 'disabled' : ''}>${tr('切换', 'Switch')}</button>
-      <button onclick="claimOne('${a.id}',this)">${tr('领取积分', 'Claim Credits')}</button>
-      <button onclick="showInfo('${a.id}')">${tr('积分/详情', 'Usage Detail')}</button>
-      <button onclick="refreshAcc('${a.id}',this)" title="${tr('用 refreshToken 换新登录凭证', 'Refresh login credentials with the refresh token')}">${tr('刷新', 'Refresh')}</button>
-      <button onclick="editNote('${a.id}')">${tr('备注', 'Note')}</button>
-      <button class="danger" onclick="delAccount('${a.id}')">${tr('删除', 'Delete')}</button>
-    </div>
-  </div>`;
+  </article>`;
 }
-
+function renderAccountCards() {
+  const query=ACCOUNT_VIEW.query.trim().toLowerCase();
+  const accounts=(STATE?.accounts||[]).filter(a=>a.edition===ACCOUNT_VIEW.edition);
+  const filtered=accounts.filter(a=>[a.name,a.note,a.email,a.phone,a.uid].some(v=>String(v||'').toLowerCase().includes(query)));
+  document.getElementById('poolCount').textContent=query?`${filtered.length} / ${accounts.length}`:accounts.length;
+  document.getElementById('poolGrid').innerHTML=filtered.length?filtered.map(accountCard).join(''):`<div class="gateway-empty"><strong>${query?'没有匹配的账号':'还没有此地区的账号'}</strong>${query?'试试其他名称、备注或 UID':'点击「添加账号」登录，或从 Qoder 采集当前账号'}</div>`;
+  document.getElementById('poolGrid').classList.toggle('compact',ACCOUNT_VIEW.compact);
+  window.dispatchEvent(new Event('qoder:accounts'));
+}
 function renderAccounts() {
-  document.getElementById('accountsBody').innerHTML = ['cn', 'intl'].map(edSection).join('');
+  const ed=ACCOUNT_VIEW.edition,edition=STATE.editions[ed]||{};
+  document.getElementById('accountsBody').innerHTML=`
+    <div class="pool-toolbar"><div class="seg">${[['cn','国内版'],['intl','国际版']].map(([key,label])=>`<button class="${ed===key?'active':''}" onclick="setPoolEdition('${key}')">${label}</button>`).join('')}</div><input class="search" id="poolSearch" placeholder="搜索账号名称、备注或 UID" aria-label="搜索账号" value="${esc(ACCOUNT_VIEW.query)}"></div>
+    <div class="pool-tools"><div class="pool-heading">账号 <span class="pill" id="poolCount"></span><span class="pool-app-state">${edition.running?'Qoder 运行中':'Qoder 未运行'}</span></div><div class="pool-actions"><button onclick="refreshPoolUsage(null,this)">刷新积分</button><button onclick="togglePoolCompact(this)" aria-pressed="${ACCOUNT_VIEW.compact}">${ACCOUNT_VIEW.compact?'舒展卡片':'紧凑卡片'}</button><button onclick="capture('${ed}',this)">采集当前账号</button><button onclick="openApp('${ed}')">打开 Qoder</button><button class="primary" onclick="openAddAccount('${ed}',this)">＋ 添加账号</button></div></div>
+    <div class="cards pool-grid" id="poolGrid"></div>`;
+  document.getElementById('poolSearch').addEventListener('input',event=>{ACCOUNT_VIEW.query=event.target.value;renderAccountCards();});
+  renderAccountCards();
 }
+window.setPoolEdition=edition=>{ACCOUNT_VIEW.edition=edition;ACCOUNT_VIEW.query='';renderAccounts();};
+window.togglePoolCompact=button=>{ACCOUNT_VIEW.compact=!ACCOUNT_VIEW.compact;button.textContent=ACCOUNT_VIEW.compact?'舒展卡片':'紧凑卡片';button.setAttribute('aria-pressed',String(ACCOUNT_VIEW.compact));document.getElementById('poolGrid').classList.toggle('compact',ACCOUNT_VIEW.compact);};
+let poolRefreshing=false;
+window.refreshPoolUsage=async(id,button)=>{
+  if(poolRefreshing)return;
+  poolRefreshing=true;button.disabled=true;const text=button.textContent;button.textContent='查询中…';
+  const accounts=(STATE?.accounts||[]).filter(a=>id?a.id===id:a.edition===ACCOUNT_VIEW.edition);
+  let failed=0;
+  try {for(const a of accounts){
+    try {const r=await invoke('credits',{id:a.id});if(!r.ok)throw new Error(r.message||'查询失败');ACCOUNT_USAGE.set(a.id,{usage:r.data?.usage,updated:new Date().toISOString()});}
+    catch(error){failed++;ACCOUNT_USAGE.set(a.id,{...ACCOUNT_USAGE.get(a.id),error:'查询失败，请稍后重试'});}
+    const slot=Array.from(document.querySelectorAll('[data-usage-account]')).find(el=>el.dataset.usageAccount===a.id);if(slot)slot.innerHTML=accountQuota(a);
+  }toast(failed?`${failed} 个账号查询失败`:'积分已更新',!failed);}
+  finally{poolRefreshing=false;button.disabled=false;button.textContent=text;}
+};
 
 function renderLog() {
   const logs = [...(STATE.claimLog || [])].reverse();
@@ -720,6 +757,8 @@ async function showInfo(id) {
     if (!el) return;
     if (!r.ok) { el.textContent = tmsg(r.message); return; }
     const d = r.data;
+    ACCOUNT_USAGE.set(id,{usage:d.usage,updated:new Date().toISOString()});
+    const usageSlot=Array.from(document.querySelectorAll('[data-usage-account]')).find(el=>el.dataset.usageAccount===id);if(usageSlot&&a)usageSlot.innerHTML=accountQuota(a);
     let h = '';
     const u = d.usage;
     if (u && (u.userQuota || u.addOnQuota)) {
@@ -1158,19 +1197,21 @@ async function loadTokenStats(refresh) {
   const tabsEl = document.getElementById('tokenSrcTabs');
   tabsEl.innerHTML = [['cn', edLabel('cn')], ['intl', edLabel('intl')]].map(([k, l]) =>
     `<button class="${TSTAT.src === k ? 'active' : ''}" onclick="__setTokenSrc('${k}')">${l}</button>`).join('');
-  const key = TSTAT.src;
+  document.getElementById('tokenDataTabs').innerHTML = [['proxy','反代实际'],['local','本地估算']].map(([k,l]) => `<button class="${TSTAT.source===k?'active':''}" onclick="__setTokenData('${k}')">${l}</button>`).join('');
+  const key = TSTAT.src + ':' + TSTAT.source;
   // 首次打开 / 手动刷新：先展示加载动画
   if (!TSTATS[key] || refresh) {
     showLoading('tokenMetrics', ['tokenChart', 'distBody']);
   }
   try {
-    TSTATS[key] = await invoke('token_stats', { edition: key, tzOffset: tzOffsetMin() });
+    TSTATS[key] = await invoke('token_stats', { edition: TSTAT.src, source: TSTAT.source, tzOffset: tzOffsetMin() });
   } catch (e) {
     TSTATS[key] = { available: false, daily: [], projects: [], models: [], requests: [], totals: {} };
     toast(tmsg(String(e)), false);
   }
   renderTokenPage();
 }
+window.__setTokenData = k => { TSTAT.source=k; TSTAT.page=0; loadTokenStats(); };
 window.__setTokenSrc = (k) => { TSTAT.src = k; TSTAT.page = 0; loadTokenStats(); };
 
 /* ── 通用时间范围控件：快捷 chips 平铺 + 范围框（点击弹双月日历） ──
@@ -1407,7 +1448,12 @@ function filterRangeDates(daily, key, custom) {
 }
 
 function renderTokenPage() {
-  const d = TSTATS[TSTAT.src] || {};
+  const d = TSTATS[TSTAT.src + ':' + TSTAT.source] || {};
+  const proxy=TSTAT.source==='proxy';
+  document.getElementById('tokenSourceDesc').textContent=proxy?'来自上游 usage · 持久保存反代请求 · 未返回用量显示 —':'基于本地会话内容估算';
+  document.querySelector('#page-tokens .c2-desc').textContent=proxy?'当日实际 Tokens（输入 + 输出，缓存已包含在输入内）':'当日估算 Tokens（输入 + 输出）';
+  document.getElementById('distDesc').textContent=proxy?'实际 Tokens 按账号 / 模型分布':'估算 Tokens 按项目 / 模型分布';
+  const heads=document.querySelectorAll('#page-tokens thead th'); heads[2].textContent=proxy?'账号':'项目'; heads[3].textContent=proxy?'协议 / 结果':'会话';
   bindRangeDD('tokenRangeDD', {
     ranges: TOKEN_RANGES,
     getKey: () => TSTAT.range,
@@ -1419,7 +1465,7 @@ function renderTokenPage() {
   if (fs) fs.innerHTML = [['km', 'K/M'], ['cn', tr('万/亿', 'Wan/Yi')]].map(([k, l]) =>
     `<button class="${TOKFMT === k ? 'active' : ''}" onclick="setPref('tokenFmt','${k}')">${l}</button>`).join('');
   document.getElementById('distTabs').innerHTML =
-    [['projects', tr('按项目', 'By Project')], ['models', tr('按模型', 'By Model')]].map(([k, l]) =>
+    [['projects', proxy ? '按账号' : tr('按项目', 'By Project')], ['models', tr('按模型', 'By Model')]].map(([k, l]) =>
       `<button class="${TSTAT.dist === k ? 'active' : ''}" onclick="__setTokenDist('${k}')">${l}</button>`).join('');
 
   /* 统一区间：指标卡 / 每日图 / 分布 / 请求明细全部按所选时间过滤 */
@@ -1440,8 +1486,8 @@ function renderTokenPage() {
     `<div class="metric"><div class="ml">${label}</div><div class="mv">${fmtNum(req, 0)}<small> ${tr('次请求', 'requests')}</small></div><div class="ml" style="margin-top:6px">${fmtTok(sumTok)} Tokens</div></div>`;
   document.getElementById('tokenMetrics').innerHTML =
     metric(`${ic('down')} ${spanLabel}`, sumTok, sumReq) +
-    metric(`${ic('tin')} ${tr('输入 Tokens（估）', 'Input Tokens (est)')}`, sumIn, sumReq) +
-    metric(`${ic('tout')} ${tr('输出 Tokens（估）', 'Output Tokens (est)')}`, sumOut, sumReq) +
+    metric(`${ic('tin')} ${proxy ? '输入 Tokens（实际）' : tr('输入 Tokens（估）', 'Input Tokens (est)')}`, sumIn, sumReq) +
+    metric(`${ic('tout')} ${proxy ? '输出 Tokens（实际）' : tr('输出 Tokens（估）', 'Output Tokens (est)')}`, sumOut, sumReq) +
     metricReq(`${ic('bolt')} ${tr('请求次数', 'Requests')}`, sumReq);
 
   renderTokenChart(d, daily);
@@ -1465,7 +1511,7 @@ function renderTokenChart(d, daily) {
     return `<div class="bar ${(p.tokens || 0) > 0 ? '' : 'zero'}" style="height:${pct}%"
       data-d="${p.date}" data-t="${fmtTok(p.tokens)}" data-i="${fmtTok(p.in || 0)}" data-o="${fmtTok(p.out || 0)}" data-r="${p.requests || 0}"></div>`;
   }).join('');
-  attachChartTip(el, p => `${p.dataset.d}<br>${tr('消耗 ', 'Used ')}<b>${p.dataset.t}</b> Tokens（${tr('估', 'est')}）<br>${tr('输入 ', 'In ')}${p.dataset.i} · ${tr('输出 ', 'Out ')}${p.dataset.o}<br>${tr('请求 ', 'Requests ')}<b>${p.dataset.r}</b>`);
+  attachChartTip(el, p => `${p.dataset.d}<br>${tr('消耗 ', 'Used ')}<b>${p.dataset.t}</b> Tokens（${TSTAT.source === 'proxy' ? '实际' : tr('估', 'est')}）<br>${tr('输入 ', 'In ')}${p.dataset.i} · ${tr('输出 ', 'Out ')}${p.dataset.o}<br>${tr('请求 ', 'Requests ')}<b>${p.dataset.r}</b>`);
 }
 
 /* 当前区间允许的日期集合（'全部' 返回 null 表示不过滤） */
@@ -1477,7 +1523,7 @@ function rangeDateSet(daily) {
 function renderTokenDist(d) {
   const raw = (TSTAT.dist === 'projects' ? d.projects : d.models) || [];
   document.getElementById('distDesc').textContent =
-    TSTAT.dist === 'projects' ? tr('消耗 Tokens 按项目目录分布', 'Token usage by project directory') : tr('消耗 Tokens 按模型分布', 'Token usage by model');
+    TSTAT.dist === 'projects' ? (TSTAT.source === 'proxy' ? '实际 Tokens 按账号分布' : tr('消耗 Tokens 按项目目录分布', 'Token usage by project directory')) : tr('消耗 Tokens 按模型分布', 'Token usage by model');
   const allowed = rangeDateSet(d.daily || []);
   /* 按区间聚合：优先用后端按日细分；旧数据无 daily 时回退总量 */
   const list = raw.map(x => {
@@ -1516,8 +1562,8 @@ function renderTokenReqs(d) {
       <td>${esc(r.model)}</td>
       <td class="ell" title="${esc(r.cwd)}">${esc((r.cwd || '').split('/').filter(Boolean).slice(-1)[0] || '—')}</td>
       <td class="ell" title="${esc(r.title)}">${esc(r.title || '—')}</td>
-      <td class="num">${fmtTok(r.inTokens)}</td>
-      <td class="num">${fmtTok(r.outTokens)}</td>
+      <td class="num">${r.inTokens == null ? '—' : fmtTok(r.inTokens)}</td>
+      <td class="num">${r.outTokens == null ? '—' : fmtTok(r.outTokens)}</td>
       <td class="num">${fmtDur(r.durationMs)}</td>
     </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">${tr('暂无请求记录', 'No request records')}</td></tr>`;
   document.getElementById('reqPagerInfo').textContent =
@@ -1536,3 +1582,5 @@ load();
 setInterval(() => {
   if (document.querySelector('#page-accounts.active')) load();
 }, 30000);
+
+setInterval(() => { if (!document.hidden && document.querySelector('#page-tokens.active') && TSTAT.source==='proxy') loadTokenStats(); }, 5000);
