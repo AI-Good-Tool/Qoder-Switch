@@ -93,8 +93,8 @@ fn validate_bundle(bundle: &Path, identifier: &str, version: &Version) -> Result
     };
     run(
         command("/usr/bin/lipo")
-            .args(["-verify_arch", arch])
-            .arg(&executable),
+            .arg(&executable)
+            .args(["-verify_arch", arch]),
         "更新应用架构不兼容",
     )?;
     run(
