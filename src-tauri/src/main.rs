@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod anthropic;
+mod app_update;
 mod custom_tools;
 mod platform;
 mod qcore;
@@ -307,9 +308,12 @@ async fn set_theme(theme: String) -> Result<Value, String> {
 /// 通用偏好设置（语言 / 时区 / 数字格式等），白名单键防脏数据
 #[tauri::command]
 async fn set_setting(key: String, value: Value) -> Result<Value, String> {
-    const ALLOWED: [&str; 4] = ["lang", "timezone", "tokenFmt", "theme"];
+    const ALLOWED: [&str; 5] = ["lang", "timezone", "tokenFmt", "theme", "autoCheckUpdates"];
     if !ALLOWED.contains(&key.as_str()) {
         return Err(format!("不支持的设置项：{key}"));
+    }
+    if key == "autoCheckUpdates" && !value.is_boolean() {
+        return Err("自动检查更新设置必须为布尔值".into());
     }
     tauri::async_runtime::spawn_blocking(move || {
         let mut s = qc::load_settings();
@@ -647,6 +651,7 @@ fn main() {
         return;
     }
     tauri::Builder::default()
+        .manage(app_update::AppUpdateDownloadState::default())
         .manage(qproxy::Gateway::new().expect("无法初始化本地网关"))
         .manage(AppState {
             scheduler: Mutex::new(SchedulerState {
@@ -655,6 +660,12 @@ fn main() {
             }),
         })
         .invoke_handler(tauri::generate_handler![
+            app_update::app_update_metadata,
+            app_update::app_update_check,
+            app_update::app_update_download,
+            app_update::app_update_cancel_download,
+            app_update::app_update_install_and_restart,
+            app_update::app_update_take_install_error,
             qproxy::gateway_state,
             qproxy::gateway_start,
             qproxy::gateway_stop,
@@ -692,6 +703,12 @@ fn main() {
             clear_claim_log,
         ])
         .setup(|app| {
+            app_update::confirm_update_restart(app.handle());
+            if let Err(error) =
+                app_update::cleanup_pending_update_artifacts_on_startup(app.handle())
+            {
+                eprintln!("更新缓存清理失败: {error}");
+            }
             spawn_auto_claim(app.handle().clone());
             Ok(())
         })

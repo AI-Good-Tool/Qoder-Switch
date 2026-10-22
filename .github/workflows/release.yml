@@ -35,6 +35,8 @@ jobs:
           node --check ui/gateway.js
           node --check ui/gateway-shell.js
           node --check ui/app.js
+          node --check ui/about.js
+          node --check ui/about-shell.js
 
   # 单独创建/获取 Release，避免并行构建任务同时建 Release 的竞态（422 already_exists）
   create-release:

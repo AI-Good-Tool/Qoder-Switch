@@ -1,0 +1,51 @@
+.about-page { max-width:1120px; margin:0 auto; }
+.about-hero { text-align:center; padding:32px 20px 40px; border-radius:24px; background:radial-gradient(ellipse at 50% 5%,rgba(99,158,124,.1),transparent 70%); }
+.about-icon { display:block; margin:0 auto 20px; border-radius:23%; box-shadow:0 12px 36px rgba(43,80,57,.12); }
+.about-kicker { color:var(--accent,#42684e); font-size:13px; font-weight:600; letter-spacing:.08em; }
+.about-hero h1 { font-size:36px; letter-spacing:-1.1px; margin:12px 0 18px; line-height:1.2; }
+.about-hero p { color:var(--muted); font-size:14px; line-height:1.8; max-width:680px; margin:24px auto 0; }
+.about-badges { display:inline-flex; gap:12px; align-items:center; padding:5px; border:1px solid var(--border); border-radius:30px; background:var(--card,#fff); }
+.about-badges>span { font-size:13px; font-weight:600; padding:8px 17px; border:1px solid var(--border); border-radius:25px; }
+.about-badges button { background:transparent; border:0; padding:8px 15px; color:var(--muted); }
+.about-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.about-tile { display:flex; align-items:center; gap:18px; padding:25px; border:1px solid var(--border); border-radius:15px; background:var(--card,#fff); text-align:left; box-shadow:0 3px 12px rgba(25,43,32,.025); transition:transform .15s,border-color .15s,box-shadow .15s; }
+.about-tile:hover { transform:translateY(-2px); border-color:#91b39d; box-shadow:0 8px 22px rgba(25,43,32,.07); }
+.about-tile:focus-visible { outline:2px solid #648a70; outline-offset:3px; }
+.about-tile:disabled { opacity:.55; transform:none; cursor:wait; }
+.about-tile>span:nth-child(2) { min-width:0; }
+.about-tile strong { display:block; color:var(--text); font-size:16px; margin-bottom:8px; }
+.about-tile small { color:var(--muted); line-height:1.6; font-size:12px; display:block; }
+.about-tile-icon { width:49px; height:49px; flex-shrink:0; border-radius:14px; display:grid; place-items:center; color:#416a50; background:#e6f0e8; }
+.about-tile-icon svg { width:24px; height:24px; }
+.about-profile { color:#5372b5; background:#eaf0fc; }
+.about-repo { color:#586575; background:#edf0f4; }
+.about-sponsor { color:#bc6971; background:#fbeef0; }
+.about-feedback { color:#39877c; background:#e5f5ef; }
+.about-check { color:#8a6eb0; background:#f1edfa; }
+.about-arrow { margin-left:auto; font-size:18px; color:var(--muted); opacity:.55; }
+.about-update { margin-top:24px; border:1px solid var(--border); border-radius:16px; padding:26px; background:var(--card,#fff); }
+.about-update-head { display:flex; justify-content:space-between; align-items:center; gap:20px; }
+.about-update h2 { font-size:16px; margin:0; }
+.about-update-head p { font-size:11px; color:var(--muted); margin:8px 0 0; }
+.about-auto { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; cursor:pointer; }
+.about-auto input { accent-color:#42684e; width:15px; height:15px; }
+.about-update-state { display:flex; align-items:center; gap:10px; padding:22px 0; color:var(--text); font-size:13px; line-height:1.7; }
+.about-update-dot { flex-shrink:0; height:7px; width:7px; border-radius:50%; background:#7ca38a; }
+.about-update.has-error .about-update-dot { background:#d26e75; }
+.about-update.has-error .about-update-state { color:#b55560; }
+.about-update-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.about-update-actions button { padding:9px 15px; }
+.about-update progress { display:block; width:100%; height:7px; accent-color:#42684e; margin-bottom:9px; }
+#aboutProgressText { display:block; color:var(--muted); font-size:11px; margin-bottom:18px; }
+#aboutReleaseNotes { white-space:pre-wrap; overflow-wrap:anywhere; font-family:inherit; font-size:12px; line-height:1.8; max-height:240px; overflow:auto; padding:16px; border-radius:10px; background:var(--muted-bg); color:var(--muted); margin:0 0 20px; }
+.about-install-confirm { margin-top:20px; padding-top:12px; border-top:1px solid var(--border); }
+.about-install-confirm p { color:var(--muted); line-height:1.8; font-size:13px; }
+.about-install-confirm button { margin-right:8px; }
+.about-footer { text-align:center; color:var(--muted); font-size:11px; margin:26px 0; }
+body.dark .about-badges,body.dark .about-tile,body.dark .about-update { background:var(--card,#202624); }
+body.dark .about-tile-icon { filter:saturate(.65) brightness(.8); }
+.about-page [hidden] { display:none!important; }
+@media(max-width:1050px) { .about-tile { padding:20px; gap:13px; } .about-tile small { font-size:11px; } }
+@media(max-width:760px) { .about-grid { grid-template-columns:1fr; } .about-update-head { align-items:flex-start; flex-direction:column; } .about-hero h1 { font-size:30px; } }
+
+body.dark .about-kicker { color:#9dbda9; }

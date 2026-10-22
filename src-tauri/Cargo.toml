@@ -1,6 +1,6 @@
 [package]
 name = "qoder-switch"
-version = "1.8.3"
+version = "1.8.4"
 description = "Qoder account switcher and daily credits auto-claim"
 edition = "2021"
 
@@ -27,13 +27,15 @@ hostname = "0.4"
 
 axum = "0.8"
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream", "gzip"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream", "gzip", "blocking"] }
 uuid = { version = "1", features = ["v4"] }
 futures-util = "0.3"
 async-stream = "0.3"
 
 rusqlite = { version = "0.32", features = ["bundled"] }
 getrandom = "0.3"
+semver = "1"
+tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
 aes-gcm = "0.10"

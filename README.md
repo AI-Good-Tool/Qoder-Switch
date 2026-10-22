@@ -1,6 +1,6 @@
 # Qoder Switch
 
-**1.8.3 本地模型网关**：参考 WorkBuddy API 桌面布局，提供 Claude Messages、Codex Responses 和 Chat Completions 接口，支持账号池、模型目录、请求诊断与实际用量。macOS / Windows 使用本机 Qoder 原生签名链路。[接入与兼容说明](docs/GATEWAY.md)。
+**1.8.4 本地模型网关**：参考 WorkBuddy API 桌面布局，提供 Claude Messages、Codex Responses 和 Chat Completions 接口，支持账号池、模型目录、请求诊断与实际用量。macOS / Windows 使用本机 Qoder 原生签名链路。[接入与兼容说明](docs/GATEWAY.md)。
 
 Qoder **国内版 / 国际版** 多账号切换与每日积分自动领取桌面 App（Tauri 2 + Rust），并提供积分统计与 Token 用量监控。
 
@@ -36,6 +36,7 @@ Windows 数据默认查找 `%APPDATA%/com.qoder.app.stable`、`%APPDATA%/com.qod
 
 | 模块 | 说明 |
 | --- | --- |
+| 关于与更新 | 作者、源码、反馈与赞助入口；启动时/手动检查 GitHub Release，应用内下载、SHA-256 校验；macOS 替换并重启，Windows 退出后启动安装器 |
 | 账号管理 | 一键采集当前登录账号（自动从客户端解密登录态）、备注、删除、导入 / 导出 |
 | 添加账号 | 不走客户端也能加号 —— 复刻 Qoder 官方 OAuth 设备流（PKCE S256），国内版 / 国际版独立入口，浏览器登录后凭证自动入库 |
 | 账号切换 | 一键切换：自动退出 Qoder → 写回登录态 → 重启应用，切换前自动备份 |

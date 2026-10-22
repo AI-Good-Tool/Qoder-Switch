@@ -1,0 +1,24 @@
+{
+  "version": "1.8.4",
+  "artifact": "Qoder-Switch_1.8.4_macos_arm64.dmg",
+  "bytes": 5255965,
+  "sha256": "c4b4d8a577e7ad5aa7a532f105fa6e8803c8b5521fb22e201398de068dc7f75d",
+  "rustDefaultTests": 65,
+  "separatelyRunTests": [
+    "public GitHub release metadata and 3 platform asset/digest selection",
+    "isolated real macOS DMG staging, verification, replacement and restart"
+  ],
+  "offlineUiChecks": [
+    "light/dark about page",
+    "new version details",
+    "synthetic download completion",
+    "installation confirmation without running installer"
+  ],
+  "signature": "ad-hoc verified",
+  "notarized": false,
+  "limitations": [
+    "Windows installer flow is implemented but not run on this macOS host",
+    "This feature first requires manually installing 1.8.4; subsequent updates require publishing a newer GitHub Release"
+  ],
+  "productionModelRequests": 0
+}
