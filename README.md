@@ -1,6 +1,6 @@
 # Qoder Switch
 
-**1.8.0 本地模型网关**：参考 WorkBuddy API 桌面布局，提供 Claude Messages、Codex Responses 和 Chat Completions 接口，支持账号池、模型目录、请求诊断与实际用量。macOS 使用本机 Qoder 原生签名链路。[接入与兼容说明](docs/GATEWAY.md)。
+**1.8.3 本地模型网关**：参考 WorkBuddy API 桌面布局，提供 Claude Messages、Codex Responses 和 Chat Completions 接口，支持账号池、模型目录、请求诊断与实际用量。macOS / Windows 使用本机 Qoder 原生签名链路。[接入与兼容说明](docs/GATEWAY.md)。
 
 Qoder **国内版 / 国际版** 多账号切换与每日积分自动领取桌面 App（Tauri 2 + Rust），并提供积分统计与 Token 用量监控。
 
@@ -26,7 +26,11 @@ macOS 首次启动若提示无法验证开发者，先在 Finder 中按住 Contr
 xattr -rd com.apple.quarantine "/Applications/Qoder Switch.app"
 ```
 
-首次运行会弹钥匙串授权框（读取 Qoder 客户端登录态的加密密钥），点「**始终允许**」一次即可。
+macOS 首次运行会弹钥匙串授权框（读取 Qoder 客户端登录态的加密密钥），点「**始终允许**」一次即可。
+
+Windows 需要 Windows 10/11 x64 与 WebView2（安装器会检查）。先安装对应地区的 Qoder，并在当前 Windows 用户下启动、登录一次。程序自动查找用户级 `%LOCALAPPDATA%/Programs`、`%LOCALAPPDATA%` 和系统级 `%ProgramFiles%` 下的 Qoder / Qoder IDE / Qoder CN；自定义安装可设置 `QODER_PATH`、`QODER_CN_PATH` 为完整 exe 路径。运行时从该安装读取，不随包分发官方代码；通常无需另装 Node.js。
+
+Windows 数据默认查找 `%APPDATA%/com.qoder.app.stable`、`%APPDATA%/com.qodercn.app.stable`，兼容旧目录 Qoder / Qoder CN；自定义数据目录可设置 `QODER_DATA_DIR`、`QODER_CN_DATA_DIR`。Windows 登录态使用 Local State 中经 DPAPI 保护的密钥及 AES-256-GCM，账号切换在目标机器重新加密；跨机器导入请保留有效 token。会话查询使用内置 SQLite，无需安装 sqlite3。
 
 ## 功能
 
@@ -51,7 +55,7 @@ xattr -rd com.apple.quarantine "/Applications/Qoder Switch.app"
 2. **添加账号**：账号页 →「添加账号」→ 选择国内版 / 国际版，浏览器完成登录后凭证自动入库
 3. **切换账号**：账号卡片 →「切换」；「备注」可给账号添加备注名
 4. **查看积分与统计**：侧栏进入「积分统计」「Token 统计」查看用量明细，支持快捷时间筛选与自定义区间
-5. **每日自动领取**：应用保持运行即可自动领取；不开应用时执行 `bash install_auto_claim.sh` 注册系统定时任务（每天 10:05 / 22:05）
+5. **每日自动领取（macOS）**：应用保持运行即可自动领取；不开应用时执行 `bash install_auto_claim.sh` 注册系统定时任务（每天 10:05 / 22:05）
 
 ## 命令行
 
@@ -78,6 +82,8 @@ qoder-switch --tstats <cn|intl>     # 打印 Token/请求观测统计（调试�
 
 ```bash
 cd qoder-switch-app
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+node --test scripts/qoder-runtime.test.mjs
 npx @tauri-apps/cli@2 build
 # macOS 产出：src-tauri/target/release/bundle/macos/Qoder Switch.app
 ```

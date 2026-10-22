@@ -1,0 +1,60 @@
+{
+  "requests": 3,
+  "maxOutputTokensPerRequest": 64,
+  "syntheticOnly": true,
+  "checks": [
+    {
+      "case": "minimal_text",
+      "maxOutputTokens": 64,
+      "businessErrors": [],
+      "finished": true,
+      "toolCall": false,
+      "http": 200,
+      "usage": {
+        "billable": false,
+        "completion_tokens": 1,
+        "credits": 0.00053328,
+        "original_credits": 0.00053328,
+        "prompt_tokens": 8,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "total_tokens": 9
+      },
+      "finishReason": "stop"
+    },
+    {
+      "case": "tool_call",
+      "maxOutputTokens": 64,
+      "businessErrors": [],
+      "finished": true,
+      "toolCall": true,
+      "http": 200,
+      "usage": {
+        "billable": false,
+        "completion_tokens": 39,
+        "credits": 0.019598039999999997,
+        "original_credits": 0.019598039999999997,
+        "prompt_tokens": 285,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "total_tokens": 324
+      },
+      "finishReason": "tool_calls"
+    },
+    {
+      "case": "tool_history",
+      "maxOutputTokens": 64,
+      "businessErrors": [
+        {
+          "status": 400,
+          "detail": "{\"code\":\"provider_error\",\"message\":\"Error in upstream response\",\"request_id\":\"e7310f65-b1a4-42ea-b0bf-97cab6a02400\",\"type\":\"provider_error\",\"details\":\"{\\\"error\\\":{\\\"message\\\":\\\"Messages with role 'tool' must be a response to a preceding message with 'tool_calls' (request_id: 6aa7643d-67e1-4151-9c1d-9d400994662a)\\\",\\\"type\\\":\\\"invalid_request_error\\\",\\\"param\\\":null,\\\"code\\\":\\\"invalid_request_error\\\"}}\"}\n"
+        }
+      ],
+      "finished": false,
+      "toolCall": false,
+      "http": 200
+    }
+  ]
+}

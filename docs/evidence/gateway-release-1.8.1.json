@@ -1,0 +1,28 @@
+{
+  "version": "1.8.1",
+  "artifact": "Qoder-Switch_1.8.1_macos_arm64.dmg",
+  "bytes": 4258822,
+  "sha256": "3b37027bf84265d6e67fd622c8a2150fde5ae9fd6bd2d557e4a9641d0260e096",
+  "rustTests": 43,
+  "javascriptSyntax": "passed",
+  "signature": "ad-hoc verified",
+  "notarized": false,
+  "changes": [
+    "preserve SSE business status and sanitized code",
+    "model-scoped cooldown for SSE 403",
+    "up to 3 distinct eligible account attempts for explicit pre-generation rejections",
+    "no automatic replay after content/tools/usage or ambiguous failures",
+    "request group and attempt diagnostics, separate retried result filter"
+  ],
+  "verification": [
+    "mock HTTP all three protocols JSON/SSE rejection then success",
+    "403 permission_error at exhaustion",
+    "attempt limit and pinned account isolation",
+    "403 pause does not block other models",
+    "generated content never triggers replay",
+    "offline retry detail and failed/retried filter UI"
+  ],
+  "liveModelRequests": 0,
+  "limitation": "The actual upstream reason for intermittent 403 is not established; this fixes gateway error handling and bounded failover.",
+  "screenshot": "rejection-retry-1.8.1-preview.png"
+}

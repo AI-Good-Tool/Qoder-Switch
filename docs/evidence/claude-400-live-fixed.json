@@ -1,0 +1,27 @@
+{
+  "requests": 1,
+  "maxOutputTokensPerRequest": 64,
+  "syntheticOnly": true,
+  "checks": [
+    {
+      "case": "fixed_tool_history",
+      "maxOutputTokens": 64,
+      "businessErrors": [],
+      "finished": true,
+      "toolCall": false,
+      "http": 200,
+      "usage": {
+        "billable": false,
+        "completion_tokens": 1,
+        "credits": 0.01497628,
+        "original_credits": 0.01497628,
+        "prompt_tokens": 333,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "total_tokens": 334
+      },
+      "finishReason": "stop"
+    }
+  ]
+}

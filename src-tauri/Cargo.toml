@@ -1,6 +1,6 @@
 [package]
 name = "qoder-switch"
-version = "1.8.0"
+version = "1.8.3"
 description = "Qoder account switcher and daily credits auto-claim"
 edition = "2021"
 
@@ -31,6 +31,13 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 uuid = { version = "1", features = ["v4"] }
 futures-util = "0.3"
 async-stream = "0.3"
+
+rusqlite = { version = "0.32", features = ["bundled"] }
+getrandom = "0.3"
+
+[target.'cfg(windows)'.dependencies]
+aes-gcm = "0.10"
+windows-sys = { version = "0.61", features = ["Win32_Security_Cryptography", "Win32_Foundation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]
 opt-level = 3

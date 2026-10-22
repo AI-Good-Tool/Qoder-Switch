@@ -9,7 +9,7 @@
   const duration=n=>n==null?'—':n<1000?`${n} ms`:`${(n/1000).toFixed(2)} s`;
   const publicId=m=>m.publicId||m.name||m.id;
   const label=p=>({'anthropic-messages':'Messages','openai-responses':'Responses','chat-completions':'Chat Completions'}[p]||p);
-  const status=s=>s==='completed'?text('成功','Success'):s==='interrupted'?text('已中断','Interrupted'):text('失败','Failed');
+  const status=s=>s==='retried'?text('已切换账号','Switched account'):s==='completed'?text('成功','Success'):s==='interrupted'?text('已中断','Interrupted'):text('失败','Failed');
   const time=s=>{try{return fmtTimeStr(s);}catch{return new Date(s).toLocaleString();}};
   function navigate(page){document.querySelector(`.nav-item[data-page="${page}"]`)?.click();}
   async function copy(value){
@@ -21,7 +21,7 @@
   function empty(title,description,action,button){return `<div class="gateway-empty"><strong>${e(title)}</strong>${e(description)}${action?`<br><button class="primary" data-gateway-action="${action}">${e(button)}</button>`:''}</div>`;}
   function table(logs){
     if(!logs.length)return empty(text('还没有请求记录','No requests yet'),text('启动服务并连接客户端后，每次调用都会出现在这里。','Start the service and connect a client to see requests here.'));
-    return `<div class="gateway-table-scroll"><table class="gateway-table"><thead><tr><th>${text('时间 / 模型','Time / model')}</th><th>${text('协议','Protocol')}</th><th>${text('账号','Account')}</th><th>${text('结果','Result')}</th><th>${text('用量','Tokens')}</th><th>${text('耗时','Duration')}</th></tr></thead><tbody>${logs.map(log=>`<tr data-request-id="${e(log.id)}" tabindex="0" role="button"><td>${e(log.model)}<small>${e(log.modelName||log.realModel||'—')} · ${e(log.realModel||'—')}</small><small>${e(time(log.time))}</small></td><td>${e(label(log.protocol))}</td><td>${e(log.account||text('未分配账号','Unassigned'))}<small>${e(region(log.edition))}</small></td><td><span class="pill ${log.status==='completed'?'on':'off'}">${e(status(log.status))}</span></td><td class="num">${log.usage&&typeof log.usage.total_tokens==='number'?num(log.usage.total_tokens):'—'}</td><td class="num">${duration(log.durationMs)}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="gateway-table-scroll"><table class="gateway-table"><thead><tr><th>${text('时间 / 模型','Time / model')}</th><th>${text('协议','Protocol')}</th><th>${text('账号','Account')}</th><th>${text('结果','Result')}</th><th>${text('用量','Tokens')}</th><th>${text('耗时','Duration')}</th></tr></thead><tbody>${logs.map(log=>`<tr data-request-id="${e(log.id)}" tabindex="0" role="button"><td>${e(log.model)}<small>${e(log.modelName||log.realModel||'—')} · ${e(log.realModel||'—')}</small><small>${e(time(log.time))}</small></td><td>${e(label(log.protocol))}</td><td>${e(log.account||text('未分配账号','Unassigned'))}<small>${e(region(log.edition))}</small></td><td><span class="pill ${log.status==='completed'?'on':log.status==='retried'?'warn':'off'}">${e(status(log.status))}</span></td><td class="num">${log.usage&&typeof log.usage.total_tokens==='number'?num(log.usage.total_tokens):'—'}</td><td class="num">${duration(log.durationMs)}</td></tr>`).join('')}</tbody></table></div>`;
   }
   function renderOverview(){
     const g=snapshot,c=g.config,logs=g.logs||[],success=logs.filter(l=>l.status==='completed');
@@ -31,7 +31,7 @@
     const tokens=logs.reduce((s,l)=>s+(Number(l.usage?.total_tokens)||0),0);
     const metrics=[[text('可用账号','Available accounts'),accounts.length,`${region(c.edition)} · ${text('账号池','Account pool')}`],[text('目录模型','Catalog models'),g.models.length,text('来自官方模型目录','Official model catalog')],[text('活动请求','Active requests'),g.active,text('每个账号最多 2 并发','Up to 2 requests per account')],[text('已记录 Tokens','Recorded tokens'),num(tokens),`${success.length} ${text('次成功请求 · 最近 200 条','successful requests · latest 200')}`]];
     $('gatewayMetrics').innerHTML=metrics.map(([name,value,note])=>`<div class="gateway-metric"><span>${e(name)}</span><strong>${e(value)}</strong><small>${e(note)}</small></div>`).join('');
-    const rows=[[text('服务状态','Service'),g.running?text('正在监听','Listening'):text('未启动','Stopped')],[text('账号地区','Region'),region(c.edition)],[text('调度策略','Scheduling'),c.strategy==='roundRobin'?text('轮询','Round robin'):text('临期优先','Expiry first')],[text('最近请求成功率','Recorded success rate'),logs.length?`${Math.round(success.length/logs.length*100)}%`:'—']];
+    const rows=[[text('服务状态','Service'),g.running?text('正在监听','Listening'):text('未启动','Stopped')],[text('账号地区','Region'),region(c.edition)],[text('调度策略','Scheduling'),c.strategy==='roundRobin'?text('轮询','Round robin'):text('临期优先','Expiry first')],[text('最近尝试成功率','Recorded attempt success rate'),logs.length?`${Math.round(success.length/logs.length*100)}%`:'—']];
     $('gatewayRuntime').innerHTML=rows.map(([k,v])=>`<div class="gateway-info-row"><span>${e(k)}</span><b>${e(v)}</b></div>`).join('');
     $('gatewayRecent').innerHTML=table(logs.slice(0,5));
   }
@@ -49,7 +49,7 @@
   }
   function renderRequests(){
     const q=$('gatewayRequestSearch').value.toLowerCase(),filter=$('gatewayRequestFilter').value;
-    const logs=snapshot.logs.filter(l=>(filter==='all'||(filter==='failed'?l.status!=='completed':l.status===filter))&&`${l.model} ${l.realModel||''} ${l.modelName||''} ${l.account} ${l.protocol}`.toLowerCase().includes(q));
+    const logs=snapshot.logs.filter(l=>(filter==='all'||(filter==='failed'?['failed','interrupted'].includes(l.status):l.status===filter))&&`${l.model} ${l.realModel||''} ${l.modelName||''} ${l.account} ${l.protocol}`.toLowerCase().includes(q));
     $('gatewayRequestCount').textContent=text(`显示 ${logs.length} / ${snapshot.logs.length} 条`,`Showing ${logs.length} / ${snapshot.logs.length}`);
     $('gatewayRequests').innerHTML=!logs.length && (q||filter!=='all') ? empty(text('没有匹配的请求','No matching requests'),text('试试其他关键词，或将结果筛选切回「全部结果」。','Try another keyword or select All results.')) : table(logs);
   }
@@ -79,7 +79,8 @@
       const row=document.createElement('div');row.className='gateway-account-control';
       const name=document.createElement('span');name.textContent=text('反代','Proxy');
       const button=document.createElement('button');button.type='button';button.className='pool-switch';button.setAttribute('role','switch');button.setAttribute('aria-checked',String(entry.enabled));button.setAttribute('aria-label',text('启用此账号反代','Enable proxy for account'));button.dataset.gatewayAccount=id;button.disabled=pending;
-      const state=document.createElement('small');state.className='pool-concurrency';state.textContent=entry.cooldownSeconds?`${text('冷却','Cooldown')} ${entry.cooldownSeconds}s`:`${entry.active} / 2 ${text('并发','active')}`;
+      const state=document.createElement('small');state.className='pool-concurrency';state.title=(entry.modelCooldowns||[]).map(m=>m.model+': '+m.seconds+'s').join(' / ');state.textContent=entry.cooldownSeconds?`${text('冷却','Cooldown')} ${entry.cooldownSeconds}s`:`${entry.active} / 2 ${text('并发','active')}`;
+      if(entry.modelCooldowns?.length)state.textContent+=` · ${entry.modelCooldowns.length} ${text('模型冷却','model paused')}`;
       row.append(name,button,state);slot.append(row);
     });
   }
@@ -101,7 +102,7 @@
   function openRequest(id){
     selected=snapshot.logs.find(l=>l.id===id);if(!selected)return;
     $('gatewayDrawerTitle').textContent=text('请求详情','Request details');
-    const fields=[[text('模型别名','Model alias'),selected.model],[text('真实模型名称','Upstream model name'),selected.modelName||'—'],[text('真实模型 ID','Upstream model ID'),selected.realModel||'—'],[text('客户端传入模型','Requested model'),selected.requestedModel||selected.model],[text('协议','Protocol'),label(selected.protocol)],[text('账号','Account'),selected.account],[text('地区','Region'),region(selected.edition)],[text('时间','Time'),time(selected.time)],[text('结果','Result'),status(selected.status)],['HTTP',selected.httpStatus],[text('首字节','First byte'),duration(selected.firstByteMs)],[text('总耗时','Duration'),duration(selected.durationMs)],['Request ID',selected.requestId],[text('上游业务码','Upstream code'),selected.upstreamCode||'—']];
+    const fields=[[text('模型别名','Model alias'),selected.model],[text('真实模型名称','Upstream model name'),selected.modelName||'—'],[text('真实模型 ID','Upstream model ID'),selected.realModel||'—'],[text('客户端传入模型','Requested model'),selected.requestedModel||selected.model],[text('协议','Protocol'),label(selected.protocol)],[text('账号','Account'),selected.account],[text('地区','Region'),region(selected.edition)],[text('时间','Time'),time(selected.time)],[text('结果','Result'),status(selected.status)],['HTTP',selected.httpStatus],[text('首字节','First byte'),duration(selected.firstByteMs)],[text('总耗时','Duration'),duration(selected.durationMs)],['Request ID',selected.requestId],[text('客户端请求组','Client request group'),selected.clientRequestId||selected.requestId],[text('候选账号尝试','Account attempt'),selected.attempt||1],[text('上游业务码','Upstream code'),selected.upstreamCode||'—']];
     $('gatewayDrawerBody').innerHTML=fields.map(([k,v])=>`<div class="gateway-info-row"><span>${e(k)}</span><b>${e(v)}</b></div>`).join('')+(selected.message?`<div class="gateway-notice" style="margin-top:18px">${e(selected.message)}</div>`:'')+`<pre class="gateway-code">${e(JSON.stringify(selected.usage||{},null,2))}</pre><p class="gateway-subtle">${text('仅记录数值与运行元数据，不保存对话正文或工具参数。','Only numeric usage and runtime metadata are recorded.')}</p>`;
     $('gatewayDrawer').hidden=false;$('gatewayDrawer').querySelector('button').focus();
   }

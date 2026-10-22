@@ -9,19 +9,32 @@ import { pathToFileURL } from 'node:url';
 async function load(edition) {
   const app = edition === 'cn' ? 'Qoder CN' : 'Qoder';
   const sdk = edition === 'cn' ? 'qoder-cn-agent-sdk' : 'qoder-agent-sdk';
-  const source = `/Applications/${app}.app/Contents/Resources/app.asar.unpacked/node_modules/@qoder-ai/${sdk}/dist/_worker/qoder-worker-runtime.obf.mjs`;
+  const source = process.env.QODER_SWITCH_RUNTIME_SOURCE || `/Applications/${app}.app/Contents/Resources/app.asar.unpacked/node_modules/@qoder-ai/${sdk}/dist/_worker/qoder-worker-runtime.obf.mjs`;
   let code = await readFile(source, 'utf8');
-  const entry = 'ok(),Zir(async()=>';
-  const at = code.lastIndexOf(entry);
-  if (at < code.length - 400 || at < 0 || !code.includes('function pO()') || !code.includes('function Gm()')) {
-    throw new Error('当前 Qoder 运行时版本不受支持，请更新适配器');
+  // Supported formats:
+  // 1) legacy (SDK 1.0.50/1.0.51, app <=0.4.4): ok(),Zir(async()=> ... function pO() / function Gm()
+  // 2) current (app 0.4.8+, obfuscated chunks renamed): fx(),vsr(async()=> ... dynamically detected
+  const entries = ['ok(),Zir(async()=>', 'fx(),vsr(async()=>'];
+  let at = -1;
+  for (const entry of entries) {
+    const i = code.lastIndexOf(entry);
+    if (i >= 0 && i > code.length - 2000) { at = i; break; }
   }
+  if (at < 0) throw new Error('当前 Qoder 运行时版本不受支持，请更新适配器');
+  const loaderMatch = [...code.matchAll(/async function (\w+)\(\)\{return (\w+)\|\|(\w+)\|\|/g)]
+    .find((m) => code.slice(m.index, m.index + 2400).includes('qoder_auth_wasm'));
+  const initMatch = code.match(
+    /(\w+)=S\(\(\)=>\{\w+\(\),[^{}]*?JSON\.stringify\(\{uid:"",encrypt_user_info:"",key:""\}\)[^{}]*?\}\)/
+  );
+  if (!loaderMatch || !initMatch) throw new Error('当前 Qoder 运行时版本不受支持，请更新适配器');
+  const wasmLoader = loaderMatch[1];
+  const wasmInit = initMatch[1];
   const hash = createHash('sha256').update(code).digest('hex').slice(0, 20);
   const dir = join(homedir(), '.qoder-switch', 'runtime-cache');
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const file = join(dir, `${edition}-${hash}-v2.mjs`);
   code = code.slice(0, at).replaceAll('import.meta.url', JSON.stringify(pathToFileURL(source).href));
-  code += '\nexport async function wasmOnly(){ZNe();return await pO();}\n';
+  code += `\nexport async function wasmOnly(){${wasmInit}();return await ${wasmLoader}();}\n`;
   try { await readFile(file); } catch {
     const temp = `${file}.${process.pid}.tmp`;
     await writeFile(temp, code, { mode: 0o600 });

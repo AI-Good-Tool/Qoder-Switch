@@ -14,7 +14,7 @@ fn path() -> std::path::PathBuf {
 pub fn record(log: &crate::qproxy::RequestLog) -> Result<(), String> {
     append(
         &path(),
-        &json!({"id":log.id,"time":log.time,"edition":log.edition,"model":log.model,"realModel":log.real_model,"modelName":log.model_name,"requestedModel":log.requested_model,"account":log.account,"protocol":log.protocol,"status":log.status,"durationMs":log.duration_ms,
+        &json!({"id":log.id,"time":log.time,"edition":log.edition,"model":log.model,"realModel":log.real_model,"modelName":log.model_name,"requestedModel":log.requested_model,"attempt":log.attempt,"clientRequestId":log.client_request_id,"upstreamCode":log.upstream_code,"account":log.account,"protocol":log.protocol,"status":log.status,"durationMs":log.duration_ms,
         "in":log.usage["prompt_tokens"].as_u64(),"out":log.usage["completion_tokens"].as_u64(),"cached":log.usage["prompt_tokens_details"]["cached_tokens"].as_u64()}),
     )
 }

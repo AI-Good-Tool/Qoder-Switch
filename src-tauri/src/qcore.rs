@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha1::Sha1;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 
@@ -62,8 +62,18 @@ pub const EDITIONS: &[Edition] = &[
 /// 带超时执行外部命令：osascript/pkill/open 等可能因系统授权弹窗（被遮挡时）无限阻塞，
 /// 导致切换/复制流程永远卡在"正在切换账号…"，这里统一加超时兜底。
 pub fn run_cmd_timeout(prog: &str, args: &[&str], timeout_ms: u64) -> Option<std::process::Output> {
-    let mut child = Command::new(prog)
-        .args(args)
+    let mut command = Command::new(prog);
+    command.args(args);
+    command_timeout(command, timeout_ms)
+}
+
+pub fn command_timeout(mut command: Command, timeout_ms: u64) -> Option<std::process::Output> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    let mut child = command
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -198,21 +208,25 @@ fn encrypt_v10(key: &[u8; 16], pt: &[u8]) -> Vec<u8> {
 }
 
 pub fn auth_dat_path(ed: &Edition) -> PathBuf {
-    home().join(ed.data_dir).join("auth.v1.dat")
+    crate::platform::data_dir(ed).join("auth.v1.dat")
 }
 
 /// 解密当前客户端 auth.v1.dat → JSON session
 pub fn decrypt_auth_dat(ed: &Edition) -> Option<Value> {
     let raw = fs::read(auth_dat_path(ed)).ok()?;
-    let key = aes_key(ed.keychain_service).ok()?;
-    let pt = decrypt_v10(&key, &raw).ok()?;
+    #[cfg(windows)]
+    let pt = crate::platform::decrypt_auth(ed, &raw).ok()?;
+    #[cfg(not(windows))]
+    let pt = decrypt_v10(&aes_key(ed.keychain_service).ok()?, &raw).ok()?;
     serde_json::from_slice(&pt).ok()
 }
 
 pub fn encrypt_session(ed: &Edition, session: &Value) -> Result<Vec<u8>, String> {
-    let key = aes_key(ed.keychain_service)?;
     let pt = serde_json::to_vec(session).map_err(|e| e.to_string())?;
-    Ok(encrypt_v10(&key, &pt))
+    #[cfg(windows)]
+    return crate::platform::encrypt_auth(ed, &pt);
+    #[cfg(not(windows))]
+    Ok(encrypt_v10(&aes_key(ed.keychain_service)?, &pt))
 }
 
 /// 由账号 tokens 构造客户端登录态（auth.v1.dat 内容，base64）。
@@ -248,6 +262,9 @@ fn write_auth_dat(ed: &Edition, session: &Value) -> Result<(), String> {
 fn write_auth_blob(ed: &Edition, blob: &[u8]) -> Result<(), String> {
     let path = auth_dat_path(ed);
     let tmp = path.with_extension("qoderswitch-tmp");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
     fs::write(&tmp, blob).map_err(|e| e.to_string())?;
     fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
     Ok(())
@@ -256,13 +273,21 @@ fn write_auth_blob(ed: &Edition, blob: &[u8]) -> Result<(), String> {
 // ───────────────────────── 设备标识 ─────────────────────────
 
 fn run_runtime_info(ed: &Edition) -> Value {
-    let exe = format!("{}/Contents/Resources/umid/runtime-info", ed.app_path);
-    if !Path::new(&exe).exists() {
+    let Some(resources) = crate::platform::resources_dir(ed) else {
+        return json!({});
+    };
+    let exe = resources.join("umid").join(if cfg!(windows) {
+        "runtime-info.exe"
+    } else {
+        "runtime-info"
+    });
+    if !exe.exists() {
         return json!({});
     }
-    let out = Command::new(&exe).arg("--account-stdin").output();
-    match out {
-        Ok(o) => {
+    let mut command = Command::new(&exe);
+    command.arg("--account-stdin");
+    match command_timeout(command, 8000) {
+        Some(o) => {
             let text = String::from_utf8_lossy(&o.stdout);
             let last = text
                 .lines()
@@ -271,7 +296,7 @@ fn run_runtime_info(ed: &Edition) -> Value {
                 .unwrap_or("");
             serde_json::from_str(last).unwrap_or(json!({}))
         }
-        Err(_) => json!({}),
+        None => json!({}),
     }
 }
 
@@ -300,7 +325,7 @@ pub fn device_headers(ed: &Edition) -> Vec<(String, String)> {
 
     let mut machine_id = String::new();
     for p in [
-        home().join(ed.data_dir).join("auth.machine-id"),
+        crate::platform::data_dir(ed).join("auth.machine-id"),
         home().join(ed.home_dir).join(".auth").join("machine_id"),
     ] {
         if let Ok(s) = fs::read_to_string(&p) {
@@ -313,8 +338,8 @@ pub fn device_headers(ed: &Edition) -> Vec<(String, String)> {
     }
 
     let mut version = String::new();
-    let mf = format!("{}/Contents/Resources/build-manifest.json", ed.app_path);
-    if let Ok(text) = fs::read_to_string(&mf) {
+    let mf = crate::platform::resources_dir(ed).map(|p| p.join("build-manifest.json"));
+    if let Some(text) = mf.and_then(|p| fs::read_to_string(p).ok()) {
         if let Ok(v) = serde_json::from_str::<Value>(&text) {
             version = v
                 .get("productVersion")
@@ -341,7 +366,14 @@ pub fn device_headers(ed: &Edition) -> Vec<(String, String)> {
     };
     let mut h = vec![
         ("Cosy-ClientType".to_string(), "10".to_string()),
-        ("Cosy-MachineOS".to_string(), format!("{}_darwin", arch)),
+        (
+            "Cosy-MachineOS".to_string(),
+            format!(
+                "{}_{}",
+                arch,
+                if cfg!(windows) { "windows" } else { "darwin" }
+            ),
+        ),
         ("Cosy-MachineHostname".to_string(), hostname),
     ];
     if !machine_id.is_empty() {
@@ -923,6 +955,7 @@ pub fn credits_summary(acc: &Account) -> (u16, Value) {
 
 // ───────────────────────── 应用控制 / 切换 ─────────────────────────
 
+#[cfg(not(windows))]
 pub fn app_running(edition_key: &str) -> bool {
     let ed = match edition(edition_key) {
         Some(e) => e,
@@ -940,6 +973,7 @@ pub fn app_running(edition_key: &str) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(not(windows))]
 pub fn quit_app(edition_key: &str) -> bool {
     let t0 = std::time::Instant::now();
     let ed = match edition(edition_key) {
@@ -986,10 +1020,28 @@ pub fn quit_app(edition_key: &str) -> bool {
     !app_running(edition_key)
 }
 
-pub fn launch_app(edition_key: &str) {
-    if let Some(ed) = edition(edition_key) {
-        let _ = run_cmd_timeout("open", &["-a", ed.app_path], 8000);
+#[cfg(windows)]
+pub fn app_running(key: &str) -> bool {
+    edition(key).is_some_and(crate::platform::app_running)
+}
+#[cfg(windows)]
+pub fn quit_app(key: &str) -> bool {
+    edition(key).is_some_and(crate::platform::quit_app)
+}
+
+pub fn launch_app(edition_key: &str) -> Result<(), String> {
+    let ed = edition(edition_key).ok_or("未知版本")?;
+    let _exe = crate::platform::app_executable(ed)
+        .ok_or("未找到 Qoder，请安装对应版本或设置 QODER_PATH / QODER_CN_PATH")?;
+    {
+        #[cfg(not(windows))]
+        run_cmd_timeout("open", &["-a", ed.app_path], 8000)
+            .filter(|o| o.status.success())
+            .ok_or("无法启动 Qoder")?;
+        #[cfg(windows)]
+        Command::new(_exe).spawn().map_err(|_| "无法启动 Qoder")?;
     }
+    Ok(())
 }
 
 pub fn switch_account(account_id: &str, steps: &mut Vec<String>) -> Result<String, String> {
@@ -1032,15 +1084,15 @@ pub fn switch_account(account_id: &str, steps: &mut Vec<String>) -> Result<Strin
     }
 
     steps.push(format!("正在写入目标账号（{}）登录态…", target.name));
-    // 空 authBlob 但有 token（OAuth 添加的旧数据）：现场构造并回写账号库
-    let blob = if target.authBlob.is_empty() {
+    // Prefer rebuilding OS/user-bound ciphertext from the token, including imported accounts.
+    let blob = if !target.token.is_empty() {
         let b64 = build_auth_blob(ed, &target)?;
         let mut accounts = load_accounts();
         if let Some(a) = accounts.iter_mut().find(|a| a.id() == account_id) {
             a.authBlob = b64.clone();
         }
         let _ = save_accounts(&accounts);
-        steps.push("已由 token 构造登录态（该账号从未在本客户端登录过）".into());
+        steps.push("已使用本机密钥重新构造登录态".into());
         B64.decode(b64).map_err(|_| "登录态构造失败".to_string())?
     } else {
         B64.decode(&target.authBlob)
@@ -1049,7 +1101,7 @@ pub fn switch_account(account_id: &str, steps: &mut Vec<String>) -> Result<Strin
     write_auth_blob(ed, &blob)?;
 
     steps.push(format!("正在启动 {}…", ed.label));
-    launch_app(&target.edition);
+    launch_app(&target.edition)?;
     Ok(format!("已切换到 {}（{}）", target.name, ed.label))
 }
 
@@ -1132,21 +1184,8 @@ fn b64url_no_pad(data: &[u8]) -> String {
 }
 
 fn urandom_bytes(n: usize) -> Vec<u8> {
-    use std::io::Read;
-    let mut buf = vec![0u8; n];
-    if fs::File::open("/dev/urandom")
-        .and_then(|mut f| f.read_exact(&mut buf))
-        .is_ok()
-    {
-        return buf;
-    }
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(1);
-    for (i, b) in buf.iter_mut().enumerate() {
-        *b = ((nanos >> ((i % 16) * 8)) & 0xff) as u8;
-    }
+    let mut buf = vec![0; n];
+    getrandom::fill(&mut buf).expect("OS random source unavailable");
     buf
 }
 
@@ -1175,7 +1214,7 @@ fn gen_nonce() -> String {
 }
 
 fn machine_id(ed: &Edition) -> String {
-    fs::read_to_string(home().join(ed.data_dir).join("auth.machine-id"))
+    fs::read_to_string(crate::platform::data_dir(ed).join("auth.machine-id"))
         .map(|s| s.trim().to_string())
         .ok()
         .filter(|s| !s.is_empty())

@@ -3,6 +3,7 @@
 
 mod anthropic;
 mod custom_tools;
+mod platform;
 mod qcore;
 mod qproxy;
 mod qroutes;
@@ -54,7 +55,7 @@ fn build_state(state: &AppState) -> Value {
     let mut editions = serde_json::Map::new();
     let mut current_uids = std::collections::HashMap::new();
     for ed in qc::EDITIONS {
-        let installed = std::path::Path::new(ed.app_path).is_dir();
+        let installed = platform::app_executable(ed).is_some();
         let mut uid = String::new();
         let mut uname = String::new();
         if installed {
@@ -323,7 +324,7 @@ async fn set_setting(key: String, value: Value) -> Result<Value, String> {
 #[tauri::command]
 async fn open_app(edition: String) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        qc::launch_app(&edition);
+        qc::launch_app(&edition)?;
         Ok(json!({ "ok": true, "message": "已启动" }))
     })
     .await
@@ -333,10 +334,7 @@ async fn open_app(edition: String) -> Result<Value, String> {
 #[tauri::command]
 async fn open_url(url: String) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        std::process::Command::new("open")
-            .arg(&url)
-            .output()
-            .map_err(|e| e.to_string())?;
+        platform::open_url(&url)?;
         Ok(json!({ "ok": true }))
     })
     .await

@@ -1,0 +1,18 @@
+{
+  "version": "1.8.2",
+  "artifact": "Qoder-Switch_1.8.2_macos_arm64.dmg",
+  "bytes": 4261678,
+  "sha256": "c7488c496ef50f5524cea7a5546f9a8d187abe52eaf6a24e0172e39cf44523ec",
+  "rustTests": 45,
+  "javascriptSyntax": "passed",
+  "signature": "ad-hoc verified",
+  "notarized": false,
+  "liveVerification": {
+    "syntheticOnly": true,
+    "initialRequests": 3,
+    "fixedRetestRequests": 1,
+    "maxOutputTokensPerRequest": 64,
+    "fixedRetest": "HTTP 200, no business errors, finish stop, 1 completion token"
+  },
+  "limitation": "Direct native signed synthetic tool-history verification; full Claude client workflow not verified. Intermittent 403 root cause remains undetermined."
+}

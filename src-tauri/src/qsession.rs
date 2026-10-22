@@ -14,13 +14,12 @@ use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // ───────────────────────── 路径与基础工具 ─────────────────────────
 
 pub fn db_path(ed: &Edition) -> PathBuf {
-    qcore::home_dir().join(ed.data_dir).join("main.sqlite")
+    crate::platform::data_dir(ed).join("main.sqlite")
 }
 
 pub fn projects_dir(ed: &Edition) -> PathBuf {
@@ -39,73 +38,56 @@ fn now_ms() -> i64 {
 }
 
 fn new_uuid() -> String {
-    // 注意：/dev/urandom 永远不会 EOF，绝不能用 fs::read（会无限读取直到内存耗尽）！
-    // 必须定长 read_exact 只取 16 字节。
-    use std::io::Read;
-    let mut b = [0u8; 16];
-    let mut ok = false;
-    if let Ok(mut f) = fs::File::open("/dev/urandom") {
-        ok = f.read_exact(&mut b).is_ok();
-    }
-    if !ok || b.iter().all(|&x| x == 0) {
-        let seed = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        for (i, chunk) in b.chunks_mut(2).enumerate() {
-            let v = ((seed >> (i * 7)) & 0xffff) as u8;
-            for (j, c) in chunk.iter_mut().enumerate() {
-                *c = v.wrapping_add((i * 31 + j * 7) as u8);
-            }
-        }
-    }
-    b[6] = (b[6] & 0x0f) | 0x40; // v4
-    b[8] = (b[8] & 0x3f) | 0x80;
-    format!(
-        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]
-    )
+    uuid::Uuid::new_v4().to_string()
 }
 
 fn sql_escape(s: &str) -> String {
     s.replace('\'', "''")
 }
 
-/// sqlite3 CLI 查询（-json 输出），返回行数组。只读，可与应用并发。
+/// Bundled SQLite avoids external CLI dependencies on Windows and macOS.
 pub fn sqlite_query(db: &Path, sql: &str) -> Result<Vec<Value>, String> {
-    let out = Command::new("sqlite3")
-        .arg("-json")
-        .arg(db)
-        .arg(sql)
-        .output()
+    use rusqlite::{types::ValueRef, Connection, OpenFlags};
+    let connection = Connection::open_with_flags(db, OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        return Err(format!(
-            "sqlite3 查询失败: {}",
-            String::from_utf8_lossy(&out.stderr)
-        ));
-    }
-    let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if text.is_empty() {
-        return Ok(vec![]);
-    }
-    serde_json::from_str(&text).map_err(|e| format!("解析 sqlite 输出失败: {}", e))
+    connection
+        .busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| e.to_string())?;
+    let mut statement = connection.prepare(sql).map_err(|e| e.to_string())?;
+    let names: Vec<String> = statement
+        .column_names()
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let rows = statement
+        .query_map([], |row| {
+            let mut object = serde_json::Map::new();
+            for (i, name) in names.iter().enumerate() {
+                let value = match row.get_ref(i)? {
+                    ValueRef::Null => Value::Null,
+                    ValueRef::Integer(n) => json!(n),
+                    ValueRef::Real(n) => json!(n),
+                    ValueRef::Text(s) => json!(String::from_utf8_lossy(s)),
+                    ValueRef::Blob(b) => json!(String::from_utf8_lossy(b)),
+                };
+                object.insert(name.clone(), value);
+            }
+            Ok(Value::Object(object))
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
-/// sqlite3 CLI 写入。调用方须确保 Qoder 应用已退出（避免写锁冲突）。
+/// Writes require the selected Qoder installation to be closed by the caller.
 fn sqlite_exec(db: &Path, sql: &str) -> Result<(), String> {
-    let out = Command::new("sqlite3")
-        .arg(db)
-        .arg(sql)
-        .output()
+    let connection =
+        rusqlite::Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)
+            .map_err(|e| e.to_string())?;
+    connection
+        .busy_timeout(std::time::Duration::from_secs(5))
         .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        return Err(format!(
-            "sqlite3 写入失败: {}",
-            String::from_utf8_lossy(&out.stderr)
-        ));
-    }
-    Ok(())
+    connection.execute_batch(sql).map_err(|e| e.to_string())
 }
 
 fn file_digest(path: &Path) -> Option<String> {
@@ -623,8 +605,7 @@ pub fn delete_session(edition_key: &str, session_id: &str) -> Result<Value, Stri
 /// 若渲染进程 leveldb 缓存中引用了该会话（如 lastRoute），删除整个 leveldb 目录。
 /// 该目录只是 UI 偏好缓存（最后打开路由等），IDE 会自动重建；需在 IDE 退出后调用。
 fn clear_renderer_route_cache(ed: &Edition, session_id: &str) -> bool {
-    let leveldb = qcore::home_dir()
-        .join(&ed.data_dir)
+    let leveldb = crate::platform::data_dir(ed)
         .join("Local Storage")
         .join("leveldb");
     if !leveldb.is_dir() {
@@ -749,4 +730,24 @@ pub fn credit_stats(tz_off: Option<i64>) -> Value {
         "todayCredits": daily.get(&today_key).cloned().unwrap_or(0.0),
         "daily": daily.iter().map(|(d, v)| json!({"date": d, "value": v})).collect::<Vec<_>>(),
     })
+}
+
+#[cfg(test)]
+mod sqlite_tests {
+    #[test]
+    fn bundled_sqlite_reads_types_writes_and_never_creates_missing_db() {
+        let path = std::env::temp_dir().join(format!("qoder-sqlite-{}.db", uuid::Uuid::new_v4()));
+        assert!(super::sqlite_query(&path, "SELECT 1").is_err());
+        assert!(!path.exists());
+        {
+            let db = rusqlite::Connection::open(&path).unwrap();
+            db.execute_batch("CREATE TABLE sample(n INTEGER, s TEXT, optional TEXT); INSERT INTO sample VALUES(7, '中文', NULL);").unwrap();
+        }
+        super::sqlite_exec(&path, "UPDATE sample SET n=9").unwrap();
+        assert_eq!(
+            super::sqlite_query(&path, "SELECT * FROM sample").unwrap(),
+            vec![serde_json::json!({"n":9,"s":"中文","optional":null})]
+        );
+        std::fs::remove_file(path).unwrap();
+    }
 }

@@ -6,9 +6,39 @@ on:
       - 'v*'
   workflow_dispatch:
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      - name: Test platform and gateway contracts
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Test runtime adapter offline
+        run: node --test scripts/qoder-runtime.test.mjs
+      - name: Check frontend syntax
+        run: |
+          node --check ui/gateway.js
+          node --check ui/gateway-shell.js
+          node --check ui/app.js
+
   # 单独创建/获取 Release，避免并行构建任务同时建 Release 的竞态（422 already_exists）
   create-release:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -29,6 +59,10 @@ jobs:
             const owner = context.repo.owner, repo = context.repo.repo;
             try {
               const existing = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              const ref = await github.rest.repos.getCommit({ owner, repo, ref: tag });
+              if (ref.data.sha !== context.sha) {
+                throw new Error(`Release ${tag} points to a different commit; bump the app version before publishing.`);
+              }
               core.info(`Release ${tag} already exists (id=${existing.data.id}), reusing it`);
               return existing.data.id;
             } catch (e) {
@@ -36,6 +70,7 @@ jobs:
               const created = await github.rest.repos.createRelease({
                 owner, repo,
                 tag_name: tag,
+                target_commitish: context.sha,
                 name: `Qoder Switch ${tag}`,
                 body: '前往 Assets 下载对应平台的安装包。macOS：Apple Silicon 下载 aarch64.dmg，Intel 下载 x64.dmg；Windows 下载 x64-setup.exe。',
                 draft: false,
@@ -54,11 +89,11 @@ jobs:
       matrix:
         include:
           - platform: macos-latest # Apple Silicon (arm64)
-            args: --target aarch64-apple-darwin
+            args: --target aarch64-apple-darwin --bundles app,dmg
           - platform: macos-latest # Intel (x86_64)
-            args: --target x86_64-apple-darwin
+            args: --target x86_64-apple-darwin --bundles app,dmg
           - platform: windows-latest # Windows x64
-            args: ''
+            args: --bundles nsis
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -66,7 +101,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - uses: dtolnay/rust-toolchain@stable
         with:
