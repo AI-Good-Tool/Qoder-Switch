@@ -443,38 +443,53 @@ window.__toggleReveal = (id) => { REVEAL[id] = !REVEAL[id]; renderAccounts(); };
 
 const ACCOUNT_VIEW = { edition: 'cn', query: '', compact: false };
 const ACCOUNT_USAGE = new Map();
+const POOL_ICONS = {
+  star:'<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
+  gift:'<path d="M3 8h18v4H3zM5 12v9h14v-9M12 8v13"/><path d="M12 8H8a3 3 0 1 1 3-3zm0 0h4a3 3 0 1 0-3-3z"/>',
+  refresh:'<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-2l2 3M4 16l2 3a7 7 0 0 0 12-2"/>',
+  switch:'<path d="M4 8h15l-4-4M20 16H5l4 4"/>',
+  phone:'<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M10 17h4"/>',
+  mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>'
+};
+const poolIcon=name=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${POOL_ICONS[name]}</svg>`;
 function accountQuota(a) {
-  const cached=ACCOUNT_USAGE.get(a.id);
-  const usage=cached?.usage;
-  const parts=[['订阅额度',usage?.userQuota],['个人资源包',usage?.addOnQuota]];
-  const known=parts.some(([,q])=>q && q.remaining != null && Number.isFinite(Number(q.remaining)));
+  const cached=ACCOUNT_USAGE.get(a.id), usage=cached?.usage;
+  const parts=[[tr('订阅额度','Subscription'),usage?.userQuota],[tr('个人资源包','Bonus quota'),usage?.addOnQuota]];
+  const known=parts.some(([,q])=>q?.remaining!=null&&Number.isFinite(Number(q.remaining)));
   const total=parts.reduce((sum,[,q])=>sum+(Number(q?.remaining)||0),0);
-  return `<div class="pool-balance"><div><span class="pool-star">☆</span><strong>${known?fmtNum(total):'—'}</strong><span>剩余积分</span></div><small>${cached?.updated ? esc((tzParts(new Date(cached.updated),true)||new Date(cached.updated).toLocaleTimeString('zh-CN',{hour12:false})).slice(-8))+' 更新' : '尚未查询'}</small></div>
-    <div class="pool-quota-head"><span>额度概览</span><button onclick="showInfo('${a.id}')">查看积分详情 ↗</button></div>
+  const date=cached?.updated?new Date(cached.updated):null;
+  const zoned=date?tzParts(date,true):null;
+  const updated=date?(zoned||date.toLocaleString()):'';
+  const updatedTime=date?(zoned?zoned.slice(-8,-3):date.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false})):'';
+  return `<div class="pool-balance"><div>${poolIcon('star')}<strong>${known?fmtNum(total):'—'}</strong><span>${tr('积分','credits')}</span></div><small title="${esc(updated)}">${poolIcon('clock')}${cached?.updated?esc(updatedTime)+' '+tr('更新','updated'):tr('未刷新','Not refreshed')}</small></div>
+    <div class="pool-quota-head"><span>${tr('可用额度','AVAILABLE QUOTA')}</span><button onclick="showInfo('${a.id}')">${tr('查看积分详情','View details')} <span aria-hidden="true">→</span></button></div>
     <div class="pool-quota-list">${parts.map(([name,q])=>{
-      const ready=q && q.remaining != null && Number.isFinite(Number(q.remaining));
+      const ready=q?.remaining!=null&&Number.isFinite(Number(q.remaining));
       const pct=ready&&Number(q.total)>0?Math.max(0,Math.min(100,Number(q.remaining)/Number(q.total)*100)):0;
-      return `<div class="pool-quota"><div><span>${name}</span><b>${ready?fmtNum(Number(q.remaining))+' / '+fmtNum(Number(q.total)||0):'待查询'}</b></div><div class="pool-track"><i style="width:${pct}%"></i></div></div>`;
+      return `<div class="pool-quota"><div><span class="pool-quota-amount">${ready?fmtNum(Number(q.remaining)): '—'}<small>${tr('积分','credits')}</small></span><span class="pool-quota-label">${name}</span><span class="pool-quota-total">${ready?tr('共 ','of ')+fmtNum(Number(q.total)||0):tr('待查询','Not loaded')}</span></div><div class="pool-track"><i style="width:${pct}%"></i></div></div>`;
     }).join('')}</div>${cached?.error?`<div class="pool-fetch-error">${esc(cached.error)}</div>`:''}`;
 }
 function accountCard(a) {
-  const hasPhone = !!a.phone && !a.email;
-  const contact = a.email || (hasPhone ? (REVEAL[a.id] ? a.phone : maskPhone(a.phone)) : '');
-  const eyeBtn = hasPhone ? `<button class="eye" aria-label="${REVEAL[a.id]?'隐藏手机号':'显示手机号'}" onclick="__toggleReveal('${a.id}')">${REVEAL[a.id] ? ICON_EYE_ON : ICON_EYE_OFF}</button>` : '';
-  const name=a.note||a.name||contact||'未命名';
+  const hasPhone=!!a.phone&&!a.email;
+  const contact=a.email||(hasPhone?(REVEAL[a.id]?a.phone:maskPhone(a.phone)):'');
+  const name=a.note||a.name||contact||tr('未命名','Unnamed');
   const tone=Array.from(a.uid||name).reduce((v,c)=>v+c.codePointAt(0),0)%4;
-  return `<article class="card pool-card ${a.isCurrent ? 'current' : ''}">
+  const eyeBtn=hasPhone?`<button class="eye" aria-label="${REVEAL[a.id]?tr('隐藏手机号','Hide phone'):tr('显示手机号','Show phone')}" onclick="__toggleReveal('${a.id}')">${REVEAL[a.id]?ICON_EYE_ON:ICON_EYE_OFF}</button>`:'';
+  return `<article class="card pool-card ${a.isCurrent?'current':''}">
     <div class="pool-identity"><div class="pool-avatar tone-${tone}">${esc(Array.from(name)[0])}</div>
-      <div class="pool-identity-text"><div class="name" title="${esc(name)}">${esc(name)}</div><div class="pool-uid" title="${esc(a.uid)}">UID · ${esc(a.uid)}</div><div class="pool-contact">${esc(contact||a.name||'—')}${eyeBtn}</div></div>
-      <details class="pool-menu"><summary aria-label="账号操作">•••</summary><div><button onclick="editNote('${a.id}')">修改备注</button><button onclick="refreshAcc('${a.id}',this)">刷新登录凭证</button><button class="danger" onclick="delAccount('${a.id}')">删除账号</button></div></details>
+      <div class="pool-identity-text"><div class="name" title="${esc(name)}">${esc(name)}</div><div class="pool-uid" title="UID · ${esc(a.uid)}">UID · ${esc(a.uid)}</div><div class="pool-contact">${poolIcon(hasPhone?'phone':'mail')}<span title="${esc(contact)}">${esc(contact||a.name||'—')}</span>${eyeBtn}</div><div class="pool-identity-status">${a.isCurrent?`<span class="pool-current-badge">✓ ${tr('当前登录','Current')}</span>`:''}<span title="${tr('登录凭证有效期','Login token validity')}">${expiryPill(a)}</span></div></div>
+      <details class="pool-menu"><summary aria-label="${tr('账号操作','Account actions')}">•••</summary><div><button onclick="editNote('${a.id}')">${tr('修改备注','Edit note')}</button><button onclick="refreshAcc('${a.id}',this)">${tr('刷新登录凭证','Refresh credentials')}</button><button class="danger" onclick="delAccount('${a.id}')">${tr('删除账号','Remove account')}</button></div></details>
     </div>
     <div class="pool-usage" data-usage-account="${esc(a.id)}">${accountQuota(a)}</div>
-    <div class="pool-footer"><div class="pool-account-status">${a.isCurrent?'<span class="pill on">当前登录</span>':'<span class="pill">未选中</span>'}${expiryPill(a)}</div>
-      <div class="ops"><button class="primary" onclick="doSwitch('${a.id}',this)" ${a.isCurrent?'disabled':''}>${a.isCurrent?'✓ 当前账号':'切换账号'}</button><button onclick="claimOne('${a.id}',this)">领取积分</button><button onclick="refreshPoolUsage('${a.id}',this)" title="查询最新积分额度">刷新积分</button></div>
-      <div class="gateway-slot" data-account="${esc(a.id)}"></div>
-    </div>
+    <div class="pool-footer"><div class="ops">
+      <button class="pool-client-action ${a.isCurrent?'is-current':''}" onclick="doSwitch('${a.id}',this)" ${a.isCurrent?'disabled':''}><span class="pool-client-icon">Q</span>${a.isCurrent?tr('当前账号','Current'):tr('设为当前','Set current')}${a.isCurrent?'<span class="pool-check">✓</span>':''}</button>
+      <button onclick="claimOne('${a.id}',this)">${poolIcon('gift')}${tr('领取积分','Claim')}</button>
+      <button onclick="refreshPoolUsage('${a.id}',this)" title="${tr('查询最新积分额度','Refresh latest quota')}">${poolIcon('refresh')}${tr('刷新','Refresh')}</button>
+    </div><div class="gateway-slot" data-account="${esc(a.id)}"></div></div>
   </article>`;
 }
+
 function renderAccountCards() {
   const query=ACCOUNT_VIEW.query.trim().toLowerCase();
   const accounts=(STATE?.accounts||[]).filter(a=>a.edition===ACCOUNT_VIEW.edition);
@@ -498,7 +513,7 @@ window.togglePoolCompact=button=>{ACCOUNT_VIEW.compact=!ACCOUNT_VIEW.compact;but
 let poolRefreshing=false;
 window.refreshPoolUsage=async(id,button)=>{
   if(poolRefreshing)return;
-  poolRefreshing=true;button.disabled=true;const text=button.textContent;button.textContent='查询中…';
+  poolRefreshing=true;button.disabled=true;const content=button.innerHTML;button.textContent=tr('查询中…','Loading…');
   const accounts=(STATE?.accounts||[]).filter(a=>id?a.id===id:a.edition===ACCOUNT_VIEW.edition);
   let failed=0;
   try {for(const a of accounts){
@@ -506,7 +521,7 @@ window.refreshPoolUsage=async(id,button)=>{
     catch(error){failed++;ACCOUNT_USAGE.set(a.id,{...ACCOUNT_USAGE.get(a.id),error:'查询失败，请稍后重试'});}
     const slot=Array.from(document.querySelectorAll('[data-usage-account]')).find(el=>el.dataset.usageAccount===a.id);if(slot)slot.innerHTML=accountQuota(a);
   }toast(failed?`${failed} 个账号查询失败`:'积分已更新',!failed);}
-  finally{poolRefreshing=false;button.disabled=false;button.textContent=text;}
+  finally{poolRefreshing=false;button.disabled=false;button.innerHTML=content;}
 };
 
 function renderLog() {

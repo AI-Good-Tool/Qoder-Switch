@@ -75,7 +75,7 @@ jobs:
                 target_commitish: context.sha,
                 name: `Qoder Switch ${tag}`,
                 body: '前往 Assets 下载对应平台的安装包。macOS：Apple Silicon 下载 aarch64.dmg，Intel 下载 x64.dmg；Windows 下载 x64-setup.exe。',
-                draft: false,
+                draft: true,
                 prerelease: false,
               });
               core.info(`Created release ${tag} (id=${created.data.id})`);
@@ -120,3 +120,23 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+
+  publish:
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner, repo = context.repo.repo;
+            const release_id = Number('${{ needs.create-release.outputs.release_id }}');
+            const { data: assets } = await github.rest.repos.listReleaseAssets({ owner, repo, release_id, per_page: 100 });
+            for (const suffix of ['_aarch64.dmg', '_x64.dmg', '_x64-setup.exe']) {
+              if (!assets.some(a => a.name.endsWith(suffix) && a.size > 0)) {
+                throw new Error('Missing installer: ' + suffix);
+              }
+            }
+            await github.rest.repos.updateRelease({ owner, repo, release_id, draft: false, make_latest: 'true' });

@@ -1,0 +1,90 @@
+/* Account cards: identity, quota, actions. Shared by full and compact views. */
+.pool-toolbar,.pool-tools,.pool-actions,.pool-heading { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.pool-toolbar { justify-content:space-between; margin:24px 0 20px; }
+.pool-toolbar .search { width:280px; max-width:100%; font-size:12px; padding:10px 13px; }
+.pool-tools { justify-content:space-between; margin-bottom:18px; }
+.pool-heading { font-weight:600; font-size:14px; }
+.pool-heading .pill { font-weight:400; }
+.pool-app-state { font-size:10px; color:var(--muted); font-weight:400; }
+.pool-actions button { font-size:11px; padding:8px 11px; }
+.cards.pool-grid { grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:18px; align-items:start; }
+.card.pool-card { padding:0; gap:0; min-width:0; border:1px solid #dfe5e8; border-radius:17px; background:var(--card); box-shadow:0 2px 4px #263e2e07; overflow:visible; }
+.card.pool-card:hover { box-shadow:0 5px 16px #263e2e0b; }
+.card.pool-card.current { border-color:#d5e4dc; box-shadow:0 2px 4px #263e2e07; }
+.pool-identity { display:flex; align-items:center; gap:13px; padding:20px 18px; position:relative; min-height:115px; border-radius:17px 17px 0 0; border-bottom:1px solid var(--border); background:#f8fafb; }
+.pool-card.current .pool-identity { background:#f3faf6; }
+.pool-avatar { width:44px; height:44px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:22px; font-weight:500; background:#d8f6e9; color:#23976e; }
+.pool-avatar.tone-1 { background:#e8efff; color:#6688cb; }
+.pool-avatar.tone-2 { background:#f0e9ff; color:#8960d0; }
+.pool-avatar.tone-3 { background:#e0f2ef; color:#358878; }
+.pool-identity-text { min-width:0; flex:1; }
+.pool-card .name { font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pool-uid { font-size:10px; color:#97a0ab; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin:5px 0 4px; }
+.pool-contact { display:flex; align-items:center; gap:4px; font-size:10px; color:#8b9693; min-width:0; }
+.pool-contact>span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pool-contact svg { width:12px; height:12px; flex:none; }
+.pool-contact .eye { padding:0; border:0; background:transparent; flex:none; color:var(--muted); }
+.pool-contact .eye svg { width:13px; height:13px; }
+.pool-identity-status { display:flex; gap:5px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+.pool-identity-status .pill,.pool-current-badge { display:inline-flex; align-items:center; border-radius:5px; padding:2px 5px; font-size:9px; line-height:1.4; }
+.pool-identity-status .pill.on { background:#e6f2eb; color:#6b927a; }
+.pool-current-badge { background:#dff3e8; color:#39926c; font-weight:500; }
+.pool-menu { align-self:flex-start; position:relative; flex:none; margin-top:1px; }
+.pool-menu summary { cursor:pointer; list-style:none; padding:0 2px; color:#8c97a3; letter-spacing:2px; font-size:12px; line-height:20px; }
+.pool-menu summary::-webkit-details-marker { display:none; }
+.pool-menu summary:focus-visible { outline:2px solid var(--primary); border-radius:4px; }
+.pool-menu[open] { z-index:5; }
+.pool-menu>div { position:absolute; right:0; top:24px; width:150px; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:5px; box-shadow:0 8px 28px #17291e1f; display:grid; }
+.pool-menu button { text-align:left; border:0; background:transparent; font-size:11px; padding:9px; }
+.pool-menu button:hover { background:var(--muted-bg); }
+.pool-usage { padding:20px 18px 18px; }
+.pool-balance { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:21px; flex-wrap:wrap; row-gap:6px; }
+.pool-balance>div { display:flex; align-items:baseline; gap:6px; min-width:0; }
+.pool-balance>div>svg { width:18px; height:18px; color:#929da8; align-self:center; flex:none; }
+.pool-balance strong { font-size:27px; font-weight:650; line-height:1.2; letter-spacing:-1px; font-variant-numeric:tabular-nums; }
+.pool-balance>div>span { font-size:10px; color:var(--muted); white-space:nowrap; }
+.pool-balance small { display:flex; align-items:center; gap:4px; font-size:9px; color:#9ba4ae; white-space:nowrap; }
+.pool-balance small svg { width:11px; height:11px; }
+.pool-quota-head { display:flex; align-items:center; justify-content:space-between; gap:8px; color:#9aa3ac; font-size:10px; margin-bottom:12px; }
+.pool-quota-head button { border:0; background:transparent; font-size:10px; padding:0; color:#56a98c; }
+.pool-quota-head button span { margin-left:5px; }
+.pool-quota-list { display:grid; gap:12px; }
+.pool-quota>div:first-child { display:flex; align-items:center; gap:7px; font-size:10px; min-width:0; }
+.pool-quota-amount { border-radius:20px; background:#f1f4f6; color:#3f4850; padding:3px 7px; font-size:10px; font-weight:500; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.pool-quota-amount small { font-size:9px; margin-left:3px; }
+.pool-quota-label { color:#98a1ac; white-space:nowrap; }
+.pool-quota-total { color:#a1aab3; font-size:9px; margin-left:auto; white-space:nowrap; }
+.pool-track { height:4px; background:#f0f2f5; border-radius:4px; overflow:hidden; margin-top:7px; }
+.pool-track i { display:block; height:100%; background:#49be97; border-radius:4px; }
+.pool-fetch-error { color:var(--red); font-size:10px; margin-top:10px; }
+.pool-footer { border-top:1px solid var(--border); padding:13px 18px 10px; margin-top:auto; }
+.pool-card .ops { display:flex; gap:6px; flex-wrap:wrap; margin:0; }
+.pool-card .ops button { display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:20px; padding:5px 8px; font-size:10px; line-height:20px; border-color:#e6eaed; background:var(--card); color:#88939b; white-space:nowrap; box-shadow:0 1px 2px #20352b05; }
+.pool-card .ops button svg { width:13px; height:13px; color:#a0aab1; }
+.pool-card .ops .pool-client-action { padding-left:5px; color:#677981; }
+.pool-client-icon { display:grid; place-items:center; width:20px; height:20px; border-radius:6px; background:#40b98f; color:white; font-size:12px; font-weight:700; }
+.pool-card .ops button.is-current { background:#f1fbf6; border-color:#bfebd8; opacity:1; color:#449877; cursor:default; }
+.pool-check { font-size:12px; color:#47b78e; }
+.pool-card .gateway-account-control { margin-top:12px; padding-top:10px; min-height:28px; display:flex; align-items:center; gap:7px; font-size:10px; color:#9da8a4; border-top:1px solid #edf0f1; }
+.pool-concurrency { margin-left:auto; color:#a3ada9; font-size:9px; white-space:nowrap; }
+.gateway-account-control .pool-switch { width:29px; height:17px; min-height:0; padding:0; border:0; border-radius:20px; background:#cdd3d8; position:relative; flex:none; }
+.pool-switch::after { content:''; position:absolute; top:2px; left:2px; width:13px; height:13px; border-radius:50%; background:white; box-shadow:0 1px 2px #0001; transition:transform .15s; }
+.pool-switch[aria-checked=true] { background:#23ad87; }
+.pool-switch[aria-checked=true]::after { transform:translateX(12px); }
+.pool-grid.compact .pool-identity { min-height:0; padding:16px 18px; }
+.pool-grid.compact .pool-usage { padding:14px 18px; }
+.pool-grid.compact .pool-balance { margin-bottom:0; }
+.pool-grid.compact .pool-quota-head,.pool-grid.compact .pool-quota-list { display:none; }
+.pool-grid.compact .pool-footer { padding-top:11px; }
+body.dark .card.pool-card { border-color:var(--border); }
+body.dark .pool-identity { background:#22272b; }
+body.dark .pool-card.current .pool-identity { background:#23332c; }
+body.dark .pool-avatar { filter:saturate(.7) brightness(.8); }
+body.dark .pool-quota-amount,body.dark .pool-track { background:#2b3238; color:#c6d0d5; }
+body.dark .pool-identity-status .pill.on,body.dark .pool-current-badge { background:#304b3c; color:#a3c8b1; }
+body.dark .pool-card .ops button { border-color:var(--border); }
+body.dark .pool-card .ops button.is-current { background:#293c32; border-color:#3a6650; color:#a3c8b1; }
+body.dark .pool-card .gateway-account-control { border-color:var(--border); }
+body.dark .pool-quota-head button { color:#7fbd9f; }
+@media(min-width:1700px) { .cards.pool-grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media(max-width:650px) { .cards.pool-grid { grid-template-columns:1fr; } .pool-actions { width:100%; } .pool-toolbar .search { width:100%; } }

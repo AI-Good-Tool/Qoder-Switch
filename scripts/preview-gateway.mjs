@@ -15,14 +15,14 @@ updateModels();
 gateway.logs=[{id:'demo-request',time:new Date().toISOString(),protocol:'openai-responses',model:'Shared Model',requestedModel:'Shared Model',realModel:'intl-shared',modelName:'Shared Model',edition:'intl',account:'Demo International',status:'completed',httpStatus:200,durationMs:1240,firstByteMs:230,usage:{prompt_tokens:100,completion_tokens:20,total_tokens:120},requestId:'offline-demo',attempt:2,clientRequestId:'offline-group'}];
 gateway.logs.push({...gateway.logs[0],id:'demo-retry',requestId:'offline-retry',account:'Demo China',edition:'cn',realModel:'cn-shared',status:'retried',httpStatus:403,upstreamCode:'403',attempt:1,message:'Qoder 流式业务错误（403）；已尝试下一个符合路由的账号',usage:null});
 window.__TAURI__={core:{invoke:async function(cmd,args){
-if(cmd==='app_update_metadata')return {version:'1.8.4',target:'macos-aarch64',autoCheckUpdates:false};
+if(cmd==='app_update_metadata')return {version:'1.8.5',target:'macos-aarch64',autoCheckUpdates:false};
 if(cmd==='app_update_take_install_error')return null;
-if(cmd==='app_update_check')return {currentVersion:'1.8.4',latestVersion:'1.8.5',hasUpdate:true,canDownload:true,target:'macos-aarch64',releaseNotes:'演示更新内容\\n改善账号管理与连接体验。'};
+if(cmd==='app_update_check')return {currentVersion:'1.8.5',latestVersion:'1.8.6',hasUpdate:true,canDownload:true,target:'macos-aarch64',releaseNotes:'演示更新内容\\n改善账号管理与连接体验。'};
 if(cmd==='app_update_download')return {version:'1.8.5',assetName:'Qoder.Switch_1.8.5_aarch64.dmg',path:'/offline-preview/installer.dmg'};
 if(cmd==='app_update_cancel_download')return {};
 if(cmd==='get_state')return {accounts,editions:{cn:{label:'Qoder 国内版',installed:true,running:false},intl:{label:'Qoder 国际版',installed:true,running:false}},settings:{theme:localStorage.getItem('qs-theme')||'light',lang:'zh',timezone:'system',tokenFmt:'km'},scheduler:{lastRun:null},claimLog:[]};
 if(cmd==='token_stats'){const date=new Date().toISOString().slice(0,10);return {available:true, daily:[{date,tokens:12500,in:10000,out:2500,requests:2}],projects:[{name:'演示账号',tokens:12500,requests:2,daily:{[date]:{tokens:12500,requests:2}}}],models:[],requests:[{ts:date+' 12:00:00',model:'GLM-5.3-Flash',cwd:'演示账号',title:'messages · completed',inTokens:10000,outTokens:2500,durationMs:1900},{ts:date+' 12:01:00',model:'GLM-5.3-Flash',cwd:'演示账号',title:'responses · failed',inTokens:null,outTokens:null,durationMs:800}]};}
-if(cmd==='credits')return {ok:true,data:{usage:{userQuota:{total:2000,remaining:1441.51,used:558.49},addOnQuota:{total:400,remaining:312.5,used:87.5}}}};
+if(cmd==='credits'){const i=accounts.findIndex(a=>a.id===args.id);const remaining=[333.38,4875.45,944.12,1103.7,254.96,2935.04,1630.34,1721.63][i]||0;return {ok:true,data:{usage:{userQuota:{total:6000,remaining:Math.max(0,remaining-100),used:6000-Math.max(0,remaining-100)},addOnQuota:{total:100,remaining:100,used:0}}}};}
 if(cmd==='gateway_generate_key')return 'qs_'+crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-','');
 if(cmd==='gateway_set_key'){if(!/^[!-~]{32,256}$/.test(args.apiKey))throw new Error('API Key 需为 32–256 位 ASCII 可见字符，不能包含空格或换行');gateway.apiKey=args.apiKey;return {ok:true};}
 if(cmd==='gateway_save_route'){if(!args.alias.trim())throw Error('请输入别名');if(!args.cn&&!args.intl)throw Error('至少选择一个地区');config.modelRoutes[args.routeId]={alias:args.alias,cn:args.cn,intl:args.intl};updateModels();return {ok:true};}

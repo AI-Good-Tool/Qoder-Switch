@@ -15,7 +15,7 @@
   sidebar.querySelector('[data-page="accounts"] span').setAttribute('data-en','Account Pool');
   sidebar.querySelector('[data-page="sessions"]').insertAdjacentHTML('beforebegin',nav('models','模型目录','Models')+nav('requests','请求记录','Requests'));
   sidebar.querySelector('[data-page="settings"]').insertAdjacentHTML('beforebegin',nav('checkin','每日领取','Daily credits')+nav('access','接入设置','API Access'));
-  sidebar.querySelector('.foot').innerHTML='<div id="gatewaySidebarStatus"><i></i> '+label('服务未启动','Service stopped')+'</div><span>Qoder Switch <b>1.8.4</b></span><small>CLAUDE · CODEX · OPENAI</small>';
+  sidebar.querySelector('.foot').innerHTML='<div id="gatewaySidebarStatus"><i></i> '+label('服务未启动','Service stopped')+'</div><span>Qoder Switch <b>1.8.5</b></span><small>CLAUDE · CODEX · OPENAI</small>';
   document.querySelector('.nav-item.active').classList.remove('active');
   sidebar.querySelector('[data-page="overview"]').classList.add('active');
   document.querySelector('.page.active').classList.remove('active');
