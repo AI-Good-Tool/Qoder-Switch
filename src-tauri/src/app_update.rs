@@ -1,7 +1,5 @@
 use semver::Version;
 use serde::{Deserialize, Serialize};
-#[cfg(windows)]
-use std::process::Command;
 use std::{
     fs::{self, File},
     io::{Read, Write},
@@ -13,6 +11,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(any(windows, test))]
+mod windows;
 
 const LATEST_RELEASE_API: &str =
     "https://api.github.com/repos/AI-Good-Tool/Qoder-Switch/releases/latest";
@@ -160,24 +160,6 @@ pub fn app_update_cancel_download(
     Ok(())
 }
 
-#[cfg(windows)]
-fn app_update_open_installer(app: AppHandle, path: String) -> Result<(), String> {
-    let download = app.state::<AppUpdateDownloadState>();
-    let update_guard = download
-        .0
-        .lock()
-        .map_err(|_| "应用更新下载状态锁已损坏".to_string())?;
-    if update_guard.active_id.is_some() || update_guard.installing {
-        return Err("应用更新仍在下载，请等待下载完成后再安装".to_string());
-    }
-
-    let canonical_installer = verified_installer(&path, update_guard.completed.as_ref())?;
-    open_installer_with_system(&canonical_installer)?;
-    mark_updates_cleanup_pending(&updates_dir()?)?;
-    drop(update_guard);
-    Ok(())
-}
-
 fn validated_installer_path(path: &str, allowed_root: &Path) -> Result<PathBuf, String> {
     let installer = PathBuf::from(path);
     if !installer.is_file() {
@@ -198,7 +180,7 @@ fn validated_installer_path(path: &str, allowed_root: &Path) -> Result<PathBuf, 
 
 #[tauri::command]
 pub async fn app_update_install_and_restart(app: AppHandle, path: String) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
         {
             let state = app.state::<AppUpdateDownloadState>();
@@ -222,26 +204,26 @@ pub async fn app_update_install_and_restart(app: AppHandle, path: String) -> Res
                 .completed
                 .clone();
             let installer = verified_installer(&path, expected.as_ref())?;
-            macos::prepare_install_and_restart(&worker_app, &installer, &root)
+            #[cfg(target_os = "macos")]
+            {
+                macos::prepare_install_and_restart(&worker_app, &installer, &root)
+            }
+            #[cfg(target_os = "windows")]
+            {
+                windows::prepare_install_and_restart(&installer, &root)
+            }
         })
         .await
         .map_err(|error| format!("应用更新安装任务失败: {error}"))
         .and_then(|result| result);
         if result.is_ok() {
-            // The detached helper waits for this process to exit before touching the bundle.
+            // Only quit once the platform updater has successfully started.
             app.state::<std::sync::Arc<crate::qproxy::Gateway>>().stop();
             app.exit(0);
         } else if let Ok(mut guard) = app.state::<AppUpdateDownloadState>().0.lock() {
             guard.installing = false;
         }
         result
-    }
-    #[cfg(target_os = "windows")]
-    {
-        app_update_open_installer(app.clone(), path)?;
-        app.state::<std::sync::Arc<crate::qproxy::Gateway>>().stop();
-        app.exit(0);
-        Ok(())
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
@@ -562,8 +544,7 @@ fn asset_score(name: &str, target: UpdateTarget) -> Option<i32> {
     let lower = name.to_ascii_lowercase();
     let mut score = match target.os {
         "macos" if lower.ends_with(".dmg") => 40,
-        "windows" if lower.ends_with(".exe") => 40,
-        "windows" if lower.ends_with(".msi") => 30,
+        "windows" if lower.ends_with("-setup.exe") => 40,
         _ => return None,
     };
 
@@ -766,33 +747,6 @@ fn emit_progress(
     );
 }
 
-#[cfg(target_os = "windows")]
-fn open_installer_with_system(path: &Path) -> Result<(), String> {
-    match path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-    {
-        Some("exe") => Command::new(path)
-            .spawn()
-            .map(|_| ())
-            .map_err(|error| format!("打开更新安装包失败: {error}")),
-        Some("msi") => Command::new("msiexec")
-            .arg("/i")
-            .arg(path)
-            .spawn()
-            .map(|_| ())
-            .map_err(|error| format!("打开更新安装包失败: {error}")),
-        _ => Err("Windows 在线更新只允许打开 EXE 或 MSI 安装包".to_string()),
-    }
-}
-
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-fn open_installer_with_system(_path: &Path) -> Result<(), String> {
-    Err("当前平台暂不支持在线安装".to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -945,7 +899,7 @@ mod tests {
     }
 
     #[test]
-    fn prefers_windows_executable_installer() {
+    fn selects_only_windows_nsis_installers_for_automatic_updates() {
         let assets = vec![
             asset("Qoder.Switch_0.1.12_x64_en-US.msi"),
             asset("Qoder.Switch_0.1.12_x64-setup.exe"),
@@ -959,6 +913,16 @@ mod tests {
         )
         .unwrap();
         assert!(selected.name.ends_with("setup.exe"));
+        for name in ["Qoder.Switch_0.1.12_x64.msi", "Qoder.Switch_0.1.12_x64.exe"] {
+            assert!(select_release_asset(
+                &[asset(name)],
+                UpdateTarget {
+                    os: "windows",
+                    arch: "x86_64"
+                }
+            )
+            .is_none());
+        }
     }
 
     #[test]

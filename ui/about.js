@@ -47,7 +47,7 @@
       if(action==='cancel-download'){await invoke('app_update_cancel_download');status(text('正在取消下载…','Cancelling…'));return;}
       if(action==='install-cancel'){$('aboutInstallConfirm').hidden=true;return;}
       if(action==='install'&&file){
-        $('aboutInstallConfirmText').textContent=target.startsWith('macos')?text('安装将退出应用并中断正在进行的反代请求。校验安装包后替换应用并重启，失败时保留旧版备份。','Installation quits the app and interrupts active proxy requests. The app restarts after replacement; a backup is kept on failure.'):text('安装将退出应用并中断正在进行的反代请求，随后启动 Windows 安装向导。','Installation quits the app, interrupts active requests and opens the Windows installer.');
+        $('aboutInstallConfirmText').textContent=target.startsWith('macos')?text('安装将退出应用并中断正在进行的反代请求。校验安装包后替换应用并重启，失败时保留旧版备份。','Installation quits the app and interrupts active proxy requests. The app restarts after replacement; a backup is kept on failure.'):text('安装将退出应用并中断正在进行的反代请求，自动更新当前安装目录并重启应用，无需操作安装向导。Windows 可能要求授权。','Installation quits the app and interrupts active proxy requests, updates the current installation automatically and restarts the app without a setup wizard. Windows may ask for permission.');
         $('aboutInstallConfirm').hidden=false;return;
       }
       if(action==='install-go'&&file&&!busy&&!installing){
